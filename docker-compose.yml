@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  teslamate-web-cn:
+    image: teslamate-web-cn:latest
+    container_name: teslamate-web-cn
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "3002:3000"
+    environment:
+      # PostgreSQL 数据库连接 (与 TeslaMate 官方一致)
+      - DATABASE_HOST=${DATABASE_HOST:-teslamate-database}
+      - DATABASE_PORT=${DATABASE_PORT:-5432}
+      - DATABASE_USER=${DATABASE_USER:-teslamate}
+      - DATABASE_PASS=${DATABASE_PASS:-your_secure_password}
+      - DATABASE_NAME=${DATABASE_NAME:-teslamate}
+      # MQTT 实时状态监听
+      - MQTT_HOST=${MQTT_HOST:-teslamate-mosquitto}
+      - MQTT_PORT=${MQTT_PORT:-1883}
+      # 地图与时区
+      - NEXT_PUBLIC_MAP_PROVIDER=amap
+      - AMAP_KEY=${AMAP_KEY:-}
+      - TZ=Asia/Shanghai
+    networks:
+      - teslamate_default
+
+networks:
+  teslamate_default:
+    external: true
