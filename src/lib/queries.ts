@@ -507,14 +507,23 @@ export async function fetchParkings(carId?: number, limit = 50, offset = 0): Pro
  * 🅿️ 获取单次停车详情
  */
 export async function fetchParkingDetail(parkingId: number): Promise<ParkingDetail | null> {
+  const list = await fetchParkings(undefined, 100, 0);
+  const summary = list.find((p) => p.id === parkingId) || list[0];
+  if (!summary) return null;
+
   const pool = getDbPool();
-  if (!pool) return null;
+  if (isDemo() || !pool) {
+    const pts = Array.from({ length: 12 }, (_, i) => ({
+      date: new Date(new Date(summary.start_date).getTime() + i * 30 * 60 * 1000).toISOString(),
+      battery_level: Math.round(summary.start_battery_level - (i / 11) * Math.max(1, summary.start_battery_level - summary.end_battery_level)),
+      ideal_battery_range_km: Number((summary.start_ideal_range_km - (i / 11) * summary.range_lost_km).toFixed(1)),
+      inside_temp: 24.0,
+      outside_temp: 26.5,
+    }));
+    return { ...summary, points: pts };
+  }
 
   try {
-    const list = await fetchParkings(undefined, 100, 0);
-    const summary = list.find((p) => p.id === parkingId);
-    if (!summary) return null;
-
     const posRes = await pool.query(
       `SELECT date, battery_level, ideal_battery_range_km, inside_temp, outside_temp
        FROM positions
@@ -603,14 +612,25 @@ export async function fetchCharges(carId?: number, limit = 50, offset = 0): Prom
  * ⚡ 获取单次充电详情
  */
 export async function fetchChargeDetail(chargeId: number): Promise<ChargeDetail | null> {
+  const list = await fetchCharges(undefined, 100, 0);
+  const summary = list.find((c) => c.id === chargeId) || list[0];
+  if (!summary) return null;
+
   const pool = getDbPool();
-  if (!pool) return null;
+  if (isDemo() || !pool) {
+    const pts = Array.from({ length: 15 }, (_, i) => ({
+      date: new Date(new Date(summary.start_date).getTime() + i * 15 * 60 * 1000).toISOString(),
+      battery_level: Math.round(summary.start_battery_level + (i / 14) * (summary.end_battery_level - summary.start_battery_level)),
+      charge_energy_added: Number(((i / 14) * summary.charge_energy_added).toFixed(2)),
+      charger_power: 7.0,
+      charger_voltage: 220,
+      charger_actual_current: 32,
+      outside_temp: 24.5,
+    }));
+    return { ...summary, points: pts };
+  }
 
   try {
-    const list = await fetchCharges(undefined, 100, 0);
-    const summary = list.find((c) => c.id === chargeId);
-    if (!summary) return null;
-
     const pointsRes = await pool.query(
       `SELECT date, battery_level, charge_energy_added, charger_power, charger_voltage, charger_actual_current, outside_temp
        FROM charges
@@ -723,21 +743,9 @@ export async function fetchEnergyBreakdown(carId?: number): Promise<EnergyBreakd
  * 🔋 1. 电池健康与衰减模型
  */
 export async function fetchBatteryHealth(carId?: number): Promise<BatteryHealthInfo> {
+  if (isDemo()) return MOCK_BATTERY_HEALTH;
   const pool = getDbPool();
-  if (!pool) {
-    return {
-      nominal_full_pack_kwh: 60.0,
-      current_usable_pack_kwh: 59.9,
-      health_percent: 99.8,
-      estimated_full_range_km: 432.5,
-      original_full_range_km: 433.0,
-      degradation_percent: 0.1,
-      slow_charge_count: 4,
-      fast_charge_count: 0,
-      slow_charge_percent: 100,
-      cycle_count: 1.6,
-    };
-  }
+  if (!pool) return MOCK_BATTERY_HEALTH;
 
   try {
     const q = `
@@ -865,6 +873,15 @@ export async function fetchMonthlyReports(carId?: number): Promise<MonthlyReport
  * 🌡️ 4. 气温对能耗影响统计
  */
 export async function fetchTemperatureStats(carId?: number): Promise<TemperatureEfficiencyPoint[]> {
+  if (isDemo()) {
+    return [
+      { temp: 15, drive_count: 8, avg_wh_km: 152 },
+      { temp: 20, drive_count: 14, avg_wh_km: 146 },
+      { temp: 25, drive_count: 22, avg_wh_km: 142 },
+      { temp: 30, drive_count: 16, avg_wh_km: 145 },
+      { temp: 35, drive_count: 6, avg_wh_km: 156 },
+    ];
+  }
   const pool = getDbPool();
   if (!pool) return [];
 
@@ -896,6 +913,14 @@ export async function fetchTemperatureStats(carId?: number): Promise<Temperature
  * 🗺️ 2. 常用地点驻留统计
  */
 export async function fetchVisitedLocations(carId?: number): Promise<VisitedLocation[]> {
+  if (isDemo()) {
+    return [
+      { name: '家 (地库)', visit_count: 42, total_parking_hours: 320.5, is_home: true },
+      { name: '高新区 · 软件新城 (天谷四路)', visit_count: 28, total_parking_hours: 198.0, is_home: false },
+      { name: '高新中大国际 Tesla V3 超充站', visit_count: 8, total_parking_hours: 4.8, is_home: false },
+      { name: '曲江新区 · 大唐不夜城', visit_count: 6, total_parking_hours: 18.5, is_home: false },
+    ];
+  }
   const pool = getDbPool();
   if (!pool) return [];
 

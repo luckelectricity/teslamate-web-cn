@@ -13,8 +13,6 @@ export const metadata: Metadata = {
   viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no',
 };
 
-export const revalidate = 0; // 实时获取最新数据
-
 export default async function RootLayout({
   children,
 }: {

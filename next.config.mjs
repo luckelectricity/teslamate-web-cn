@@ -6,6 +6,7 @@ const nextConfig = {
   // Demo 静态导出模式 vs 生产 Docker standalone 模式
   output: isDemoMode ? 'export' : 'standalone',
   basePath: process.env.NEXT_PUBLIC_BASE_PATH || '',
+  trailingSlash: true,
   images: {
     unoptimized: true,
   },

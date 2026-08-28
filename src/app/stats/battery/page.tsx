@@ -4,8 +4,6 @@ import { fetchBatteryHealth } from '@/lib/queries';
 import { ArrowLeft, Activity, BatteryCharging, Award } from 'lucide-react';
 import { BatteryHealthCharts } from '@/components/charts/BatteryHealthCharts';
 
-export const dynamic = 'force-dynamic';
-
 export default async function BatteryHealthPage() {
   const health = await fetchBatteryHealth();
 
