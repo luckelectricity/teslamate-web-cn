@@ -6,6 +6,7 @@ on:
       - main
   workflow_dispatch:
 
+# 设置 GITHUB_TOKEN 权限以允许部署到 GitHub Pages
 permissions:
   contents: read
   pages: write
@@ -32,27 +33,17 @@ jobs:
         with:
           version: 9
 
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build Static Demo (Mock Mode)
         env:
           NEXT_PUBLIC_DEMO_MODE: "true"
           NEXT_PUBLIC_BASE_PATH: "/${{ github.event.repository.name }}"
-        run: pnpm build:demo
+        run: |
+          pnpm build:demo
+          # 防止 GitHub Pages 的 Jekyll 引擎过滤 _next 静态资源目录
+          touch out/.nojekyll
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

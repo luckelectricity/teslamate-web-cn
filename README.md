@@ -67,22 +67,23 @@
 
 ```mermaid
 flowchart TD
-    subgraph Tesla Infrastructure
-        Car[Tesla 车辆] -->|Tesla API| TM[TeslaMate 官方服务]
-        TM -->|实时写入| PG[(PostgreSQL 数据库)]
-        TM -->|状态推送| Mosquitto[Mosquitto MQTT]
+    subgraph TM_INFRA ["Tesla 基础设施"]
+        Car["Tesla 车辆"] -->|"Tesla API"| TM["TeslaMate 官方服务"]
+        TM -->|"实时写入"| PG[("PostgreSQL 数据库")]
+        TM -->|"状态推送"| Mosquitto["Mosquitto MQTT"]
     end
 
-    subgraph TeslaMate CN
-        App[Next.js 14 应用服务]
-        PG -->|只读查询 (0写入安全)| App
-        Mosquitto -->|实时事件监听| App
-        Amap[高德地图 Web API] -->|逆地理编码 & 瓦片| App
+    subgraph TM_CN ["TeslaMate CN 看板"]
+        App["Next.js 14 应用服务"]
+        PG -->|"只读查询 (0写入安全)"| App
+        Mosquitto -->|"实时事件监听"| App
+        Amap["高德地图 Web API"] -->|"逆地理编码与地图瓦片"| App
     end
 
-    subgraph 用户端展示
-        App --> Phone[手机 / 极空间 / 群晖 App]
-        App --> Desktop[PC 宽屏浏览器]
+    subgraph CLIENTS ["多端展示与分享"]
+        App --> Phone["手机端 (极空间/群晖/浏览器)"]
+        App --> Desktop["PC 宽屏大看板"]
+        App --> Poster["月报与行程分享海报 (支持隐私脱敏)"]
     end
 ```
 
