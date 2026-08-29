@@ -1,4 +1,4 @@
-import { format, formatDistanceToNow, parseISO } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
 export function formatDistance(km: number | null | undefined): string {
@@ -39,20 +39,68 @@ export function formatCurrency(amount: number | null | undefined): string {
   return `¥${amount.toFixed(2)}`;
 }
 
-export function formatDateTime(dateStr: string | null | undefined): string {
+/**
+ * 🕒 强制按东八区（Asia/Shanghai）格式化完整日期时间
+ * 输出示例: 2026-08-29 14:10
+ */
+export function formatDateTime(dateStr: string | Date | null | undefined): string {
   if (!dateStr) return '--';
   try {
-    const d = typeof dateStr === 'string' ? parseISO(dateStr) : dateStr;
-    return format(d, 'yyyy-MM-dd HH:mm', { locale: zhCN });
+    const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+    if (isNaN(d.getTime())) return String(dateStr);
+
+    const formatter = new Intl.DateTimeFormat('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+
+    const parts = formatter.formatToParts(d);
+    const getPart = (type: string) => parts.find((p) => p.type === type)?.value || '';
+
+    return `${getPart('year')}-${getPart('month')}-${getPart('day')} ${getPart('hour')}:${getPart('minute')}`;
   } catch {
-    return dateStr;
+    return String(dateStr);
   }
 }
 
+/**
+ * 🕒 强制按东八区（Asia/Shanghai）仅格式化时间 (HH:mm)
+ */
+export function formatTime(dateStr: string | Date | null | undefined): string {
+  if (!dateStr) return '--';
+  try {
+    const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+    if (isNaN(d.getTime())) return String(dateStr);
+
+    const formatter = new Intl.DateTimeFormat('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+
+    const parts = formatter.formatToParts(d);
+    const getPart = (type: string) => parts.find((p) => p.type === type)?.value || '';
+
+    return `${getPart('hour')}:${getPart('minute')}`;
+  } catch {
+    return String(dateStr);
+  }
+}
+
+/**
+ * 🕒 相对时间格式化 (例如: 10分钟前)
+ */
 export function formatTimeAgo(dateStr: string | null | undefined): string {
   if (!dateStr) return '--';
   try {
-    const d = typeof dateStr === 'string' ? parseISO(dateStr) : dateStr;
+    const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+    if (isNaN(d.getTime())) return String(dateStr);
     return formatDistanceToNow(d, { addSuffix: true, locale: zhCN });
   } catch {
     return dateStr;

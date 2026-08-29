@@ -413,40 +413,48 @@ export async function fetchParkings(carId?: number, limit = 50, offset = 0): Pro
           COALESCE(ep.battery_level, 0) as start_battery_level,
           d1.end_address_id as address_id,
           d1.end_geofence_id as geofence_id,
+          ep.latitude as parking_lat,
+          ep.longitude as parking_lng,
           d2.id as next_drive_id,
-          d2.start_date as parking_end,
-          d2.start_ideal_range_km as end_ideal_km,
-          COALESCE(sp.battery_level, 0) as end_battery_level,
+          COALESCE(d2.start_date, (SELECT MAX(date) FROM positions WHERE car_id = d1.car_id)) as parking_end,
+          COALESCE(d2.start_ideal_range_km, (SELECT ideal_battery_range_km FROM positions WHERE car_id = d1.car_id ORDER BY date DESC LIMIT 1)) as end_ideal_km,
+          COALESCE(sp.battery_level, (SELECT battery_level FROM positions WHERE car_id = d1.car_id ORDER BY date DESC LIMIT 1), 0) as end_battery_level,
           (
             SELECT COUNT(*) > 0 
             FROM charging_processes cp 
-            WHERE cp.start_date >= d1.end_date AND cp.start_date <= d2.start_date
-          ) as has_charge
+            WHERE cp.start_date >= d1.end_date AND (d2.start_date IS NULL OR cp.start_date <= d2.start_date)
+          ) as has_charge,
+          (d2.id IS NULL) as is_current
         FROM drives d1
-        JOIN drives d2 ON d2.id = (
-          SELECT MIN(id) FROM drives WHERE start_date > d1.end_date AND ($1::int IS NULL OR car_id = $1)
-        )
+        LEFT JOIN LATERAL (
+          SELECT * FROM drives 
+          WHERE start_date > d1.end_date AND ($1::int IS NULL OR car_id = $1)
+          ORDER BY start_date ASC 
+          LIMIT 1
+        ) d2 ON true
         LEFT JOIN positions ep ON d1.end_position_id = ep.id
         LEFT JOIN positions sp ON d2.start_position_id = sp.id
-        WHERE ($1::int IS NULL OR d1.car_id = $1)
+        WHERE ($1::int IS NULL OR d1.car_id = $1) AND d1.end_date IS NOT NULL
       )
       SELECT 
         dp.prev_drive_id as id,
         dp.car_id,
         dp.parking_start as start_date,
         dp.parking_end as end_date,
-        ROUND(EXTRACT(EPOCH FROM (dp.parking_end - dp.parking_start)) / 60) as duration_min,
+        GREATEST(1, ROUND(EXTRACT(EPOCH FROM (dp.parking_end - dp.parking_start)) / 60)) as duration_min,
         dp.start_ideal_km as start_ideal_range_km,
         dp.end_ideal_km as end_ideal_range_km,
         dp.start_battery_level,
         dp.end_battery_level,
         dp.has_charge,
-        COALESCE(g.name, addr.name, addr.road, '常用停车点') as address,
-        (g.name = '家') as is_home
+        dp.is_current,
+        dp.parking_lat,
+        dp.parking_lng,
+        COALESCE(g.name, addr.name, addr.road) as raw_address
       FROM drive_pairs dp
       LEFT JOIN geofences g ON dp.geofence_id = g.id
       LEFT JOIN addresses addr ON dp.address_id = addr.id
-      WHERE EXTRACT(EPOCH FROM (dp.parking_end - dp.parking_start)) >= 180
+      WHERE EXTRACT(EPOCH FROM (dp.parking_end - dp.parking_start)) >= 120 OR dp.is_current = true
       ORDER BY dp.parking_start DESC
       LIMIT $2 OFFSET $3;
     `;
@@ -454,49 +462,58 @@ export async function fetchParkings(carId?: number, limit = 50, offset = 0): Pro
     const res = await pool.query(query, [carId || null, limit, offset]);
     if (res.rows.length === 0) return [];
 
-    return res.rows.map((row) => {
-      const durationMin = Math.max(1, Number(row.duration_min || 1));
-      const hours = durationMin / 60.0;
-      const startIdeal = Number(row.start_ideal_range_km || 0);
-      const endIdeal = Number(row.end_ideal_range_km || 0);
-      const hasCharge = Boolean(row.has_charge);
+    return await Promise.all(
+      res.rows.map(async (row) => {
+        const durationMin = Math.max(1, Number(row.duration_min || 1));
+        const hours = durationMin / 60.0;
+        const startIdeal = Number(row.start_ideal_range_km || 0);
+        const endIdeal = Number(row.end_ideal_range_km || 0);
+        const hasCharge = Boolean(row.has_charge);
 
-      let rangeLost = 0;
-      let energyLost = 0;
-      let drainRate = 0;
+        let rangeLost = 0;
+        let energyLost = 0;
+        let drainRate = 0;
 
-      if (!hasCharge && startIdeal >= endIdeal) {
-        rangeLost = Number((startIdeal - endIdeal).toFixed(1));
-        energyLost = Number((rangeLost * 0.155).toFixed(2));
-        drainRate = hours > 0 ? Number((energyLost / hours).toFixed(3)) : 0;
-      } else if (!hasCharge && startIdeal < endIdeal) {
-        rangeLost = 0;
-        energyLost = 0.05;
-        drainRate = 0.005;
-      } else {
-        energyLost = 0.1;
-        rangeLost = 0;
-        drainRate = 0.01;
-      }
+        if (!hasCharge && startIdeal >= endIdeal) {
+          rangeLost = Number((startIdeal - endIdeal).toFixed(1));
+          energyLost = Number((rangeLost * 0.155).toFixed(2));
+          drainRate = hours > 0 ? Number((energyLost / hours).toFixed(3)) : 0;
+        } else if (!hasCharge && startIdeal < endIdeal) {
+          rangeLost = 0;
+          energyLost = 0.02;
+          drainRate = 0.005;
+        } else {
+          energyLost = 0.1;
+          rangeLost = 0;
+          drainRate = 0.01;
+        }
 
-      return {
-        id: row.id,
-        car_id: row.car_id,
-        start_date: new Date(row.start_date).toISOString(),
-        end_date: new Date(row.end_date).toISOString(),
-        duration_min: durationMin,
-        start_ideal_range_km: Number(startIdeal.toFixed(1)),
-        end_ideal_range_km: Number(endIdeal.toFixed(1)),
-        start_battery_level: Number(row.start_battery_level || 0),
-        end_battery_level: Number(row.end_battery_level || 0),
-        range_lost_km: rangeLost,
-        energy_lost_kwh: energyLost,
-        drain_rate_kwh_per_hour: drainRate,
-        address: row.address === '家' ? '家里车位 (家)' : row.address,
-        is_home: Boolean(row.is_home),
-        has_charge: hasCharge,
-      };
-    });
+        const address =
+          row.raw_address ||
+          (await reverseGeocodeAddress(
+            row.parking_lat ? Number(row.parking_lat) : null,
+            row.parking_lng ? Number(row.parking_lng) : null
+          ));
+
+        return {
+          id: row.id,
+          car_id: row.car_id,
+          start_date: new Date(row.start_date).toISOString(),
+          end_date: new Date(row.end_date).toISOString(),
+          duration_min: durationMin,
+          start_ideal_range_km: Number(startIdeal.toFixed(1)),
+          end_ideal_range_km: Number(endIdeal.toFixed(1)),
+          start_battery_level: Number(row.start_battery_level || 0),
+          end_battery_level: Number(row.end_battery_level || 0),
+          range_lost_km: rangeLost,
+          energy_lost_kwh: energyLost,
+          drain_rate_kwh_per_hour: drainRate,
+          address: address || '常用停车点',
+          is_home: row.raw_address === '家',
+          has_charge: hasCharge,
+        };
+      })
+    );
   } catch (err) {
     console.error('fetchParkings error:', err);
     return [];
