@@ -8,12 +8,12 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-38B2AC?style=flat-square&logo=tailwind-css)](https://tailwindcss.com/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker)](https://www.docker.com/)
-[![GitHub Pages](https://img.shields.io/badge/Live_Demo-Online-emerald?style=flat-square&logo=github)](https://your-username.github.io/teslamate-web-cn/)
+[![GitHub Pages](https://img.shields.io/badge/Live_Demo-Online-emerald?style=flat-square&logo=github)](https://luckelectricity.github.io/teslamate-web-cn/)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
 
-[🌐 在线 Demo 演示](https://your-username.github.io/teslamate-web-cn/) • [✨ 功能特性](#-功能特性) • [🚀 快速部署](#-快速开始--docker-一键部署) • [📄 环境变量](#-环境变量配置) • [🛡️ 隐私模式](#-海报与隐私脱敏)
+[🌐 在线 Demo 演示](https://luckelectricity.github.io/teslamate-web-cn/) • [✨ 功能特性](#-功能特性) • [🚀 快速部署](#-快速开始--docker-一键部署) • [📄 环境变量](#-环境变量配置) • [🛡️ 隐私模式](#-海报与隐私脱敏)
 
-> 💡 **在线免部署体验**：本项目已内置高保真 Mock 数据演示站，[点击直接在线体验 Demo](https://your-username.github.io/teslamate-web-cn/)！
+> 💡 **在线免部署体验**：本项目已内置高保真 Mock 数据演示站，[点击直接在线体验 Demo](https://luckelectricity.github.io/teslamate-web-cn/)！
 
 </div>
 
@@ -103,7 +103,7 @@ version: '3.8'
 
 services:
   teslamate-web-cn:
-    image: ghcr.io/your-username/teslamate-web-cn:latest
+    image: ghcr.io/luckelectricity/teslamate-web-cn:latest
     # 或直接本地构建: build: .
     container_name: teslamate-web-cn
     restart: always
@@ -144,7 +144,7 @@ docker compose up -d
 
 1. **克隆仓库**
    ```bash
-   git clone https://github.com/your-username/teslamate-web-cn.git
+   git clone https://github.com/luckelectricity/teslamate-web-cn.git
    cd teslamate-web-cn
    ```
 
