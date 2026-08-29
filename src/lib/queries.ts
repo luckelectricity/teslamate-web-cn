@@ -76,7 +76,7 @@ const DEFAULT_EMPTY_CAR: Car = {
 export async function fetchCars(): Promise<Car[]> {
   if (isDemo()) return [MOCK_CAR];
   const pool = getDbPool();
-  if (!pool) return [MOCK_CAR];
+  if (!pool) return [DEFAULT_EMPTY_CAR];
 
   try {
     const query = `
@@ -134,7 +134,7 @@ export async function fetchCars(): Promise<Car[]> {
         name: row.name || `Model ${row.model}`,
         model: row.model || 'Y',
         trim_badging: row.trim_badging || 'Standard',
-        vin: row.vin || 'LRWYG...',
+        vin: row.vin || '5YJ3E1EB8NF000000',
         exterior_color: row.exterior_color || 'SolidBlack',
         wheel_type: row.wheel_type || 'Standard',
         battery_level: mqttState.battery_level != null ? mqttState.battery_level : Number(row.battery_level || 76),
@@ -178,7 +178,7 @@ export async function fetchCars(): Promise<Car[]> {
 export async function fetchDrives(carId?: number, limit = 50, offset = 0): Promise<DriveSummary[]> {
   if (isDemo()) return MOCK_DRIVES;
   const pool = getDbPool();
-  if (!pool) return MOCK_DRIVES;
+  if (!pool) return [];
 
   try {
     const query = `
@@ -290,12 +290,12 @@ export async function fetchDrives(carId?: number, limit = 50, offset = 0): Promi
  * 获取单次行程详细 GPS 轨迹
  */
 export async function fetchDriveDetail(driveId: number): Promise<DriveDetail | null> {
-  if (isDemo() || driveId === 51) {
+  if (isDemo()) {
     const match = MOCK_DRIVES.find((d) => d.id === driveId);
     return match ? { ...MOCK_DRIVE_DETAIL, ...match } : MOCK_DRIVE_DETAIL;
   }
   const pool = getDbPool();
-  if (!pool) return MOCK_DRIVE_DETAIL;
+  if (!pool) return null;
 
   try {
     const driveRes = await pool.query(
@@ -524,12 +524,8 @@ export async function fetchParkings(carId?: number, limit = 50, offset = 0): Pro
  * 🅿️ 获取单次停车详情
  */
 export async function fetchParkingDetail(parkingId: number): Promise<ParkingDetail | null> {
-  const list = await fetchParkings(undefined, 100, 0);
-  const summary = list.find((p) => p.id === parkingId) || list[0];
-  if (!summary) return null;
-
-  const pool = getDbPool();
-  if (isDemo() || !pool) {
+  if (isDemo()) {
+    const summary = MOCK_PARKING.find((p) => p.id === parkingId) || MOCK_PARKING[0];
     const pts = Array.from({ length: 12 }, (_, i) => ({
       date: new Date(new Date(summary.start_date).getTime() + i * 30 * 60 * 1000).toISOString(),
       battery_level: Math.round(summary.start_battery_level - (i / 11) * Math.max(1, summary.start_battery_level - summary.end_battery_level)),
@@ -540,7 +536,14 @@ export async function fetchParkingDetail(parkingId: number): Promise<ParkingDeta
     return { ...summary, points: pts };
   }
 
+  const pool = getDbPool();
+  if (!pool) return null;
+
   try {
+    const list = await fetchParkings(undefined, 100, 0);
+    const summary = list.find((p) => p.id === parkingId);
+    if (!summary) return null;
+
     const posRes = await pool.query(
       `SELECT date, battery_level, ideal_battery_range_km, inside_temp, outside_temp
        FROM positions
@@ -572,7 +575,7 @@ export async function fetchParkingDetail(parkingId: number): Promise<ParkingDeta
 export async function fetchCharges(carId?: number, limit = 50, offset = 0): Promise<ChargeSummary[]> {
   if (isDemo()) return MOCK_CHARGES;
   const pool = getDbPool();
-  if (!pool) return MOCK_CHARGES;
+  if (!pool) return [];
 
   try {
     const query = `
@@ -629,12 +632,8 @@ export async function fetchCharges(carId?: number, limit = 50, offset = 0): Prom
  * ⚡ 获取单次充电详情
  */
 export async function fetchChargeDetail(chargeId: number): Promise<ChargeDetail | null> {
-  const list = await fetchCharges(undefined, 100, 0);
-  const summary = list.find((c) => c.id === chargeId) || list[0];
-  if (!summary) return null;
-
-  const pool = getDbPool();
-  if (isDemo() || !pool) {
+  if (isDemo()) {
+    const summary = MOCK_CHARGES.find((c) => c.id === chargeId) || MOCK_CHARGES[0];
     const pts = Array.from({ length: 15 }, (_, i) => ({
       date: new Date(new Date(summary.start_date).getTime() + i * 15 * 60 * 1000).toISOString(),
       battery_level: Math.round(summary.start_battery_level + (i / 14) * (summary.end_battery_level - summary.start_battery_level)),
@@ -647,7 +646,14 @@ export async function fetchChargeDetail(chargeId: number): Promise<ChargeDetail 
     return { ...summary, points: pts };
   }
 
+  const pool = getDbPool();
+  if (!pool) return null;
+
   try {
+    const list = await fetchCharges(undefined, 100, 0);
+    const summary = list.find((c) => c.id === chargeId);
+    if (!summary) return null;
+
     const pointsRes = await pool.query(
       `SELECT date, battery_level, charge_energy_added, charger_power, charger_voltage, charger_actual_current, outside_temp
        FROM charges
@@ -820,7 +826,7 @@ export async function fetchBatteryHealth(carId?: number): Promise<BatteryHealthI
 export async function fetchMonthlyReports(carId?: number): Promise<MonthlyReport[]> {
   if (isDemo()) return MOCK_MONTHLY_REPORTS;
   const pool = getDbPool();
-  if (!pool) return MOCK_MONTHLY_REPORTS;
+  if (!pool) return [];
 
   try {
     const q = `
@@ -932,10 +938,10 @@ export async function fetchTemperatureStats(carId?: number): Promise<Temperature
 export async function fetchVisitedLocations(carId?: number): Promise<VisitedLocation[]> {
   if (isDemo()) {
     return [
-      { name: '家 (地库)', visit_count: 42, total_parking_hours: 320.5, is_home: true },
-      { name: '高新区 · 软件新城 (天谷四路)', visit_count: 28, total_parking_hours: 198.0, is_home: false },
-      { name: '高新中大国际 Tesla V3 超充站', visit_count: 8, total_parking_hours: 4.8, is_home: false },
-      { name: '曲江新区 · 大唐不夜城', visit_count: 6, total_parking_hours: 18.5, is_home: false },
+      { name: '大雁塔北广场停车区', visit_count: 36, total_parking_hours: 240.5, is_home: false },
+      { name: '西安钟楼开元商城车库', visit_count: 24, total_parking_hours: 156.0, is_home: false },
+      { name: '曲江金地广场 Tesla V3 超充站', visit_count: 12, total_parking_hours: 8.5, is_home: false },
+      { name: '西安北站地下车库 P2 停车区', visit_count: 8, total_parking_hours: 28.5, is_home: false },
     ];
   }
   const pool = getDbPool();
@@ -1062,7 +1068,7 @@ export async function fetchSavingsAnalysis(carId?: number): Promise<SavingsAnaly
 export async function fetchFootprintDrives(carId?: number): Promise<FootprintDrivePath[]> {
   if (isDemo()) return MOCK_FOOTPRINT_DRIVES;
   const pool = getDbPool();
-  if (!pool) return MOCK_FOOTPRINT_DRIVES;
+  if (!pool) return [];
 
   try {
     const drives = await fetchDrives(carId, 100, 0);

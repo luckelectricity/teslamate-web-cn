@@ -4,6 +4,8 @@ import { fetchTemperatureStats } from '@/lib/queries';
 import { ArrowLeft, ThermometerSun, Sun, Snowflake, Zap } from 'lucide-react';
 import { TemperatureCharts } from '@/components/charts/TemperatureCharts';
 
+export const revalidate = 0;
+
 export default async function TemperaturePage() {
   const points = await fetchTemperatureStats();
 
