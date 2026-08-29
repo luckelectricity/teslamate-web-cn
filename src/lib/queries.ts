@@ -63,9 +63,9 @@ const DEFAULT_EMPTY_CAR: Car = {
   tire_pressure_fr: 2.9,
   tire_pressure_rl: 2.9,
   tire_pressure_rr: 2.9,
-  latitude: 34.341568,
-  longitude: 108.940174,
-  address: '车辆位置解析中',
+  latitude: 34.22020,
+  longitude: 108.96420,
+  address: '西安市 · 雁塔区大雁塔北广场',
   version: '2024.32.10',
   battery_heater: false,
 };
