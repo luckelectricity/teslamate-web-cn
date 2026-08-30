@@ -74,6 +74,21 @@ export function DriveDetailClient({ drive }: DriveDetailClientProps) {
         </div>
       </div>
 
+      {/* ⚡ 智能合并行程提示条 */}
+      {drive.is_merged && (
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-amber-300">
+          <div className="flex items-center gap-2">
+            <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-400 font-bold text-[11px]">
+              ⚡ 智能合并
+            </span>
+            <span>本次旅途包含 {drive.merged_count} 段临时锁车行驶，全量轨迹已无缝平滑拼接</span>
+          </div>
+          {drive.stopover_duration_min && drive.stopover_duration_min > 0 ? (
+            <span className="text-zinc-400 text-[11px]">中途短暂休整约 {drive.stopover_duration_min} 分钟</span>
+          ) : null}
+        </div>
+      )}
+
       {/* 4 核心统计指标 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         <StatCard

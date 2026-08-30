@@ -34,9 +34,16 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
             >
               {/* 头部：时间与主要里程 */}
               <div className="flex items-center justify-between text-xs pb-2 border-b border-zinc-800/60">
-                <span className="font-mono text-zinc-400">
-                  {formatDateTime(drive.start_date)}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-zinc-400">
+                    {formatDateTime(drive.start_date)}
+                  </span>
+                  {drive.is_merged && (
+                    <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-full font-medium">
+                      ⚡ 合并{drive.merged_count}段
+                    </span>
+                  )}
+                </div>
                 <span className="font-bold text-white text-sm">
                   {formatDistance(drive.distance)}
                 </span>

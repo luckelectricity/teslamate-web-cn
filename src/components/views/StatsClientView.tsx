@@ -2,9 +2,10 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { LifetimeStats, EnergyBreakdown } from '@/types';
+import { LifetimeStats, EnergyBreakdown, DrivingRecordsByPeriod } from '@/types';
 import { SavingsAnalysis } from '@/lib/queries';
 import { useViewModeStore } from '@/store/useViewModeStore';
+import { DrivingRecordsCard } from '@/components/cards/DrivingRecordsCard';
 import { 
   Zap, 
   TrendingDown, 
@@ -27,13 +28,17 @@ interface StatsClientViewProps {
   stats: LifetimeStats;
   savings: SavingsAnalysis;
   energy: EnergyBreakdown;
+  records: DrivingRecordsByPeriod;
 }
 
-export function StatsClientView({ stats, savings, energy }: StatsClientViewProps) {
+export function StatsClientView({ stats, savings, energy, records }: StatsClientViewProps) {
   const { isMobileLayout } = useViewModeStore();
 
   return (
-    <div className={`space-y-4 pb-24 pt-2 px-3 mx-auto ${isMobileLayout ? 'max-w-lg' : 'max-w-6xl'}`}>
+    <div className={`space-y-5 pb-24 pt-2 px-3 mx-auto ${isMobileLayout ? 'max-w-lg' : 'max-w-6xl'}`}>
+      {/* 🏆 核心 0：驾驶生涯极值榜单 (支持 月/半年/全年/全部 时间周期切换) */}
+      <DrivingRecordsCard records={records} />
+
       {/* 顶部总览卡片 */}
       <div className="bg-gradient-to-br from-zinc-900 via-zinc-900/90 to-zinc-950 p-5 rounded-3xl border border-zinc-800 shadow-xl">
         <div className="flex items-center justify-between">

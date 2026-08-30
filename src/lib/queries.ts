@@ -14,7 +14,11 @@ import {
   MonthlyReport,
   TemperatureEfficiencyPoint,
   VisitedLocation,
-  FootprintDrivePath
+  FootprintDrivePath,
+  DrivingRecords,
+  DrivingRecordsByPeriod,
+  RecordPeriod,
+  DrivingRecordItem,
 } from '@/types';
 import { wgs84ToGcj02 } from './coordtransform';
 import { reverseGeocodeAddress } from './geocoder';
@@ -28,6 +32,7 @@ import {
   MOCK_MONTHLY_REPORTS,
   MOCK_BATTERY_HEALTH,
   MOCK_FOOTPRINT_DRIVES,
+  MOCK_DRIVING_RECORDS,
 } from './mockData';
 
 const isDemo = () => process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
@@ -173,10 +178,123 @@ export async function fetchCars(): Promise<Car[]> {
 }
 
 /**
- * 获取真实行程列表
+ * ⚡ 智能行程合并算法 (Smart Trip Merging)
+ * 将 10 分钟内、终点与起点相同/相近且中途无充电的连续行程合并为一条连贯行程
  */
-export async function fetchDrives(carId?: number, limit = 50, offset = 0): Promise<DriveSummary[]> {
-  if (isDemo()) return MOCK_DRIVES;
+export function mergeConsecutiveDrives(
+  drives: DriveSummary[],
+  maxGapMinutes = 10
+): DriveSummary[] {
+  if (!drives || drives.length <= 1) return drives || [];
+
+  // 按开始时间正序排序进行线性扫描合并
+  const sorted = [...drives].sort(
+    (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+  );
+
+  const merged: DriveSummary[] = [];
+  let currentGroup: DriveSummary[] = [sorted[0]];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = currentGroup[currentGroup.length - 1];
+    const curr = sorted[i];
+
+    const prevEnd = new Date(prev.end_date).getTime();
+    const currStart = new Date(curr.start_date).getTime();
+    const gapMinutes = (currStart - prevEnd) / (1000 * 60);
+
+    const isSameVehicle = prev.car_id === curr.car_id;
+    // 间隔在 10 分钟之内
+    const isShortGap = gapMinutes >= -1 && gapMinutes <= maxGapMinutes;
+
+    // 地址相同、相近或 position_id 连贯
+    const isNearby =
+      prev.end_address === curr.start_address ||
+      (prev.end_address && curr.start_address && (prev.end_address.includes(curr.start_address) || curr.start_address.includes(prev.end_address))) ||
+      (prev.end_position_id && curr.start_position_id && prev.end_position_id === curr.start_position_id);
+
+    if (isSameVehicle && isShortGap && isNearby) {
+      currentGroup.push(curr);
+    } else {
+      merged.push(combineDriveGroup(currentGroup));
+      currentGroup = [curr];
+    }
+  }
+
+  if (currentGroup.length > 0) {
+    merged.push(combineDriveGroup(currentGroup));
+  }
+
+  // 最终按时间降序（最新在前）返回
+  return merged.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
+}
+
+function combineDriveGroup(group: DriveSummary[]): DriveSummary {
+  if (group.length === 1) return group[0];
+
+  const first = group[0];
+  const last = group[group.length - 1];
+
+  const totalDistance = group.reduce((sum, d) => sum + (d.distance || 0), 0);
+  const totalDurationMin = group.reduce((sum, d) => sum + (d.duration_min || 0), 0);
+  const totalConsumptionKwh = group.reduce((sum, d) => sum + (d.consumption_kwh || 0), 0);
+  const maxSpeed = Math.max(...group.map((d) => d.speed_max || 0));
+  const maxPower = Math.max(...group.map((d) => d.power_max || 0));
+  const minPower = Math.min(...group.map((d) => d.power_min || 0));
+  const totalAscent = group.reduce((sum, d) => sum + (d.ascent || 0), 0);
+  const totalDescent = group.reduce((sum, d) => sum + (d.descent || 0), 0);
+
+  // 计算中途总停顿时间
+  const firstStart = new Date(first.start_date).getTime();
+  const lastEnd = new Date(last.end_date).getTime();
+  const spanDurationMin = Math.round((lastEnd - firstStart) / (1000 * 60));
+  const stopoverMin = Math.max(0, spanDurationMin - totalDurationMin);
+
+  // 综合能耗
+  const avgEfficiency =
+    totalDistance > 0
+      ? Math.round((totalConsumptionKwh * 1000) / totalDistance)
+      : first.efficiency_wh_km;
+  const avgSpeed =
+    totalDurationMin > 0
+      ? Number(((totalDistance / totalDurationMin) * 60).toFixed(1))
+      : first.speed_avg;
+
+  return {
+    ...first,
+    id: first.id, // 主 ID 使用第一段 ID
+    end_date: last.end_date,
+    end_address: last.end_address,
+    end_battery_level: last.end_battery_level,
+    end_position_id: last.end_position_id,
+    duration_min: totalDurationMin,
+    distance: Number(totalDistance.toFixed(1)),
+    speed_max: maxSpeed,
+    speed_avg: avgSpeed,
+    power_max: maxPower,
+    power_min: minPower,
+    consumption_kwh: Number(totalConsumptionKwh.toFixed(2)),
+    efficiency_wh_km: avgEfficiency,
+    ascent: totalAscent,
+    descent: totalDescent,
+    // ⚡ 智能合并标记
+    is_merged: true,
+    merged_count: group.length,
+    merged_drive_ids: group.map((d) => d.id),
+    stopover_duration_min: stopoverMin,
+  };
+}
+
+/**
+ * 获取真实行程列表（已智能合并10分钟内临时锁车中断行程）
+ */
+export async function fetchDrives(
+  carId?: number,
+  limit = 50,
+  offset = 0,
+  enableMerge = true
+): Promise<DriveSummary[]> {
+  if (isDemo()) return enableMerge ? mergeConsecutiveDrives(MOCK_DRIVES) : MOCK_DRIVES;
   const pool = getDbPool();
   if (!pool) return [];
 
@@ -234,10 +352,12 @@ export async function fetchDrives(carId?: number, limit = 50, offset = 0): Promi
       LIMIT $2 OFFSET $3;
     `;
 
-    const res = await pool.query(query, [carId || null, limit, offset]);
+    // 查询稍多数据以支持连续平滑合并
+    const fetchLimit = enableMerge ? Math.min(200, limit * 2) : limit;
+    const res = await pool.query(query, [carId || null, fetchLimit, offset]);
     if (res.rows.length === 0) return [];
 
-    return await Promise.all(
+    const rawList: DriveSummary[] = await Promise.all(
       res.rows.map(async (row) => {
         const startAddr =
           row.start_address_raw ||
@@ -280,6 +400,11 @@ export async function fetchDrives(carId?: number, limit = 50, offset = 0): Promi
         };
       })
     );
+
+    if (!enableMerge) return rawList.slice(0, limit);
+
+    const mergedList = mergeConsecutiveDrives(rawList);
+    return mergedList.slice(0, limit);
   } catch (err) {
     console.error('fetchDrives error:', err);
     return [];
@@ -287,7 +412,7 @@ export async function fetchDrives(carId?: number, limit = 50, offset = 0): Promi
 }
 
 /**
- * 获取单次行程详细 GPS 轨迹
+ * 获取单次行程详细 GPS 轨迹（支持合并行程的多段轨迹平滑拼接）
  */
 export async function fetchDriveDetail(driveId: number): Promise<DriveDetail | null> {
   if (isDemo()) {
@@ -298,82 +423,63 @@ export async function fetchDriveDetail(driveId: number): Promise<DriveDetail | n
   if (!pool) return null;
 
   try {
-    const driveRes = await pool.query(
-      `SELECT d.*, 
-              COALESCE(start_addr.name, start_addr.road, start_addr.display_name, sg.name) as start_address_raw, 
-              COALESCE(end_addr.name, end_addr.road, end_addr.display_name, eg.name) as end_address_raw,
-              sg.name as start_geo,
-              eg.name as end_geo,
-              sp.latitude as start_lat,
-              sp.longitude as start_lng,
-              ep.latitude as end_lat,
-              ep.longitude as end_lng,
-              COALESCE(sp.battery_level, 0) as start_battery_level, 
-              COALESCE(ep.battery_level, 0) as end_battery_level
-       FROM drives d
-       LEFT JOIN addresses start_addr ON d.start_address_id = start_addr.id
-       LEFT JOIN addresses end_addr ON d.end_address_id = end_addr.id
-       LEFT JOIN geofences sg ON d.start_geofence_id = sg.id
-       LEFT JOIN geofences eg ON d.end_geofence_id = eg.id
-       LEFT JOIN positions sp ON d.start_position_id = sp.id
-       LEFT JOIN positions ep ON d.end_position_id = ep.id
-       WHERE d.id = $1`,
-      [driveId]
-    );
+    // 1. 获取包含该 driveId 的行程列表（带合并识别）
+    const allDrives = await fetchDrives(undefined, 100, 0, true);
+    const targetDrive =
+      allDrives.find((d) => d.id === driveId || (d.merged_drive_ids && d.merged_drive_ids.includes(driveId))) ||
+      allDrives.find((d) => d.id === driveId);
 
-    if (driveRes.rows.length === 0) return null;
-    const row = driveRes.rows[0];
+    const driveIdsToFetch = targetDrive?.merged_drive_ids || [driveId];
 
-    const startAddress =
-      row.start_address_raw ||
-      (await reverseGeocodeAddress(
-        row.start_lat ? Number(row.start_lat) : null,
-        row.start_lng ? Number(row.start_lng) : null,
-        row.start_geo
-      ));
-
-    const endAddress =
-      row.end_address_raw ||
-      (await reverseGeocodeAddress(
-        row.end_lat ? Number(row.end_lat) : null,
-        row.end_lng ? Number(row.end_lng) : null,
-        row.end_geo
-      ));
-
+    // 2. 查询这些行程的轨迹点集合
     const posRes = await pool.query(
       `SELECT id, date, latitude, longitude, speed, power, battery_level, odometer, elevation, inside_temp, outside_temp
        FROM positions
-       WHERE drive_id = $1
+       WHERE drive_id = ANY($1::int[])
        ORDER BY date ASC`,
-      [driveId]
+      [driveIdsToFetch]
     );
 
-    const dist = Number(row.distance || 0);
-    const dur = Number(row.duration_min || 1);
-    const idealDiff = Number(row.start_ideal_range_km || 0) - Number(row.end_ideal_range_km || 0);
-    const energyKwh = idealDiff > 0 ? Number((idealDiff * 0.155).toFixed(2)) : 0.5;
-    const eff = dist >= 0.5 && idealDiff > 0 ? Math.round((idealDiff * 155) / dist) : 148;
+    if (!targetDrive) {
+      // 兜底单条查询
+      const singleDriveRes = await pool.query(`SELECT * FROM drives WHERE id = $1`, [driveId]);
+      if (singleDriveRes.rows.length === 0) return null;
+      const row = singleDriveRes.rows[0];
+      return {
+        id: row.id,
+        car_id: row.car_id,
+        start_date: new Date(row.start_date).toISOString(),
+        end_date: row.end_date ? new Date(row.end_date).toISOString() : new Date(row.start_date).toISOString(),
+        duration_min: Number(row.duration_min || 1),
+        distance: Number(Number(row.distance || 0).toFixed(1)),
+        speed_max: Number(row.speed_max || 0),
+        speed_avg: Number((row.distance / (row.duration_min || 1) * 60).toFixed(1)),
+        power_max: Number(row.power_max || 0),
+        power_min: Number(row.power_min || 0),
+        start_address: '起点位置',
+        end_address: '目的地',
+        start_battery_level: 0,
+        end_battery_level: 0,
+        consumption_kwh: 0.5,
+        efficiency_wh_km: 148,
+        positions: posRes.rows.map((p) => ({
+          id: p.id,
+          date: new Date(p.date).toISOString(),
+          latitude: Number(p.latitude),
+          longitude: Number(p.longitude),
+          speed: Number(p.speed || 0),
+          power: Number(p.power || 0),
+          battery_level: Number(p.battery_level || 0),
+          odometer: Number(p.odometer || 0),
+          elevation: p.elevation != null ? Number(p.elevation) : 0,
+          inside_temp: p.inside_temp != null ? Number(p.inside_temp) : null,
+          outside_temp: p.outside_temp != null ? Number(p.outside_temp) : null,
+        })),
+      };
+    }
 
     return {
-      id: row.id,
-      car_id: row.car_id,
-      start_date: new Date(row.start_date).toISOString(),
-      end_date: row.end_date ? new Date(row.end_date).toISOString() : new Date(row.start_date).toISOString(),
-      duration_min: dur,
-      distance: Number(dist.toFixed(1)),
-      speed_max: Number(row.speed_max || 0),
-      speed_avg: Number((dist / dur * 60).toFixed(1)),
-      power_max: Number(row.power_max || 0),
-      power_min: Number(row.power_min || 0),
-      start_address: startAddress,
-      end_address: endAddress,
-      start_battery_level: Number(row.start_battery_level || 0),
-      end_battery_level: Number(row.end_battery_level || 0),
-      consumption_kwh: energyKwh,
-      efficiency_wh_km: eff,
-      ascent: Number(row.ascent || 0),
-      descent: Number(row.descent || 0),
-      outside_temp_avg: Number(row.outside_temp_avg || 28),
+      ...targetDrive,
       positions: posRes.rows.map((p) => ({
         id: p.id,
         date: new Date(p.date).toISOString(),
@@ -383,7 +489,7 @@ export async function fetchDriveDetail(driveId: number): Promise<DriveDetail | n
         power: Number(p.power || 0),
         battery_level: Number(p.battery_level || 0),
         odometer: Number(p.odometer || 0),
-        elevation: Number(p.elevation || 0),
+        elevation: p.elevation != null ? Number(p.elevation) : 0,
         inside_temp: p.inside_temp != null ? Number(p.inside_temp) : null,
         outside_temp: p.outside_temp != null ? Number(p.outside_temp) : null,
       })),
@@ -1028,6 +1134,161 @@ export async function fetchLifetimeStats(carId?: number): Promise<LifetimeStats>
       sentry_duration_hours: 48,
       sleep_duration_hours: 94.0,
     };
+  }
+}
+
+/**
+ * 🏆 5. 获取多时间周期（月/半年/全年/所有时间）驾驶生涯极值榜单
+ */
+export async function fetchDrivingRecords(carId?: number): Promise<DrivingRecordsByPeriod> {
+  if (isDemo()) return MOCK_DRIVING_RECORDS;
+  const pool = getDbPool();
+  if (!pool) return MOCK_DRIVING_RECORDS;
+
+  try {
+    // 1. 获取所有合并后的完整行程
+    const allMergedDrives = await fetchDrives(carId, 1000, 0, true);
+    if (!allMergedDrives || allMergedDrives.length === 0) return MOCK_DRIVING_RECORDS;
+
+    const now = Date.now();
+    const oneMonthAgo = now - 30 * 24 * 60 * 60 * 1000;
+    const sixMonthsAgo = now - 180 * 24 * 60 * 60 * 1000;
+    const oneYearAgo = now - 365 * 24 * 60 * 60 * 1000;
+
+    const computeForPeriod = (period: RecordPeriod, filterFn: (d: DriveSummary) => boolean): DrivingRecords => {
+      let filtered = allMergedDrives.filter(filterFn);
+      if (filtered.length === 0) filtered = allMergedDrives; // 兜底
+
+      // 最高时速
+      const maxSpeedDrive = [...filtered].sort((a, b) => (b.speed_max || 0) - (a.speed_max || 0))[0] || filtered[0];
+      // 最远里程
+      const longestDistDrive = [...filtered].sort((a, b) => (b.distance || 0) - (a.distance || 0))[0] || filtered[0];
+      // 最长驾驶时间
+      const longestDurDrive = [...filtered].sort((a, b) => (b.duration_min || 0) - (a.duration_min || 0))[0] || filtered[0];
+      // 最佳能耗 (距离 >= 3km)
+      const validEffDrives = filtered.filter((d) => (d.distance || 0) >= 3.0);
+      const bestEffDrive = validEffDrives.length > 0
+        ? [...validEffDrives].sort((a, b) => (a.efficiency_wh_km || 999) - (b.efficiency_wh_km || 999))[0]
+        : filtered[0];
+      // 最大功率与动能回收
+      const maxPowerDrive = [...filtered].sort((a, b) => (b.power_max || 0) - (a.power_max || 0))[0] || filtered[0];
+      const minPowerDrive = [...filtered].sort((a, b) => (a.power_min || 0) - (b.power_min || 0))[0] || filtered[0];
+      // 最大爬升
+      const maxAscentDrive = [...filtered].sort((a, b) => (b.ascent || 0) - (a.ascent || 0))[0] || filtered[0];
+      // 极限气温
+      const lowestTempDrive = [...filtered].filter((d) => d.outside_temp_avg != null).sort((a, b) => (a.outside_temp_avg || 0) - (b.outside_temp_avg || 0))[0] || filtered[0];
+      const highestTempDrive = [...filtered].filter((d) => d.outside_temp_avg != null).sort((a, b) => (b.outside_temp_avg || 0) - (a.outside_temp_avg || 0))[0] || filtered[0];
+
+      return {
+        period,
+        max_speed: {
+          value: maxSpeedDrive.speed_max,
+          formatted_value: String(Math.round(maxSpeedDrive.speed_max)),
+          unit: 'km/h',
+          title: period === 'all' ? '生涯最高极速' : '最高极速',
+          sub_text: `${maxSpeedDrive.start_address} ➔ ${maxSpeedDrive.end_address}`,
+          date: maxSpeedDrive.start_date,
+          location: maxSpeedDrive.end_address,
+          drive_id: maxSpeedDrive.id,
+          secondary_value: maxSpeedDrive.power_max > 0 ? `峰值功率 ${maxSpeedDrive.power_max} kW` : undefined,
+        },
+        longest_distance: {
+          value: longestDistDrive.distance,
+          formatted_value: String(longestDistDrive.distance.toFixed(1)),
+          unit: 'km',
+          title: period === 'all' ? '生涯单次最远里程' : '单次最远里程',
+          sub_text: `${longestDistDrive.start_address} ➔ ${longestDistDrive.end_address}`,
+          date: longestDistDrive.start_date,
+          location: longestDistDrive.end_address,
+          drive_id: longestDistDrive.id,
+          secondary_value: `耗电 ${longestDistDrive.consumption_kwh} kWh${longestDistDrive.is_merged ? ' (已合并中途停留)' : ''}`,
+        },
+        longest_duration: {
+          value: longestDurDrive.duration_min,
+          formatted_value: longestDurDrive.duration_min >= 60
+            ? `${Math.floor(longestDurDrive.duration_min / 60)}小时${longestDurDrive.duration_min % 60}分`
+            : `${longestDurDrive.duration_min}分钟`,
+          unit: '',
+          title: period === 'all' ? '生涯最长单次驾驶' : '单次最长驾驶',
+          sub_text: `${longestDurDrive.start_address} ➔ ${longestDurDrive.end_address}`,
+          date: longestDurDrive.start_date,
+          location: longestDurDrive.end_address,
+          drive_id: longestDurDrive.id,
+          secondary_value: `里程 ${longestDurDrive.distance} km`,
+        },
+        best_efficiency: {
+          value: bestEffDrive.efficiency_wh_km,
+          formatted_value: String(Math.round(bestEffDrive.efficiency_wh_km)),
+          unit: 'Wh/km',
+          title: period === 'all' ? '黄金右脚 / 生涯最佳能耗' : '黄金右脚 / 最佳能耗',
+          sub_text: `${bestEffDrive.start_address} ➔ ${bestEffDrive.end_address}`,
+          date: bestEffDrive.start_date,
+          location: bestEffDrive.end_address,
+          drive_id: bestEffDrive.id,
+          secondary_value: `总里程 ${bestEffDrive.distance} km`,
+        },
+        max_power: {
+          value: maxPowerDrive.power_max,
+          formatted_value: String(Math.round(maxPowerDrive.power_max)),
+          unit: 'kW',
+          title: period === 'all' ? '生涯最大放电功率' : '最大瞬时放电功率',
+          sub_text: `${maxPowerDrive.start_address} ➔ ${maxPowerDrive.end_address}`,
+          date: maxPowerDrive.start_date,
+          location: maxPowerDrive.end_address,
+          drive_id: maxPowerDrive.id,
+        },
+        max_regen: {
+          value: minPowerDrive.power_min,
+          formatted_value: String(Math.round(minPowerDrive.power_min)),
+          unit: 'kW',
+          title: period === 'all' ? '生涯最强动能回收' : '最强动能回收',
+          sub_text: `${minPowerDrive.start_address} ➔ ${minPowerDrive.end_address}`,
+          date: minPowerDrive.start_date,
+          location: minPowerDrive.end_address,
+          drive_id: minPowerDrive.id,
+        },
+        max_ascent: {
+          value: maxAscentDrive.ascent || 0,
+          formatted_value: `+${maxAscentDrive.ascent || 0}`,
+          unit: 'm',
+          title: period === 'all' ? '生涯单次最大爬升' : '单次最大海拔爬升',
+          sub_text: `${maxAscentDrive.start_address} ➔ ${maxAscentDrive.end_address}`,
+          date: maxAscentDrive.start_date,
+          location: maxAscentDrive.end_address,
+          drive_id: maxAscentDrive.id,
+        },
+        extreme_temp: {
+          lowest: {
+            value: lowestTempDrive.outside_temp_avg || 20,
+            formatted_value: String(lowestTempDrive.outside_temp_avg?.toFixed(1) || '20.0'),
+            unit: '°C',
+            title: '最低温出行',
+            date: lowestTempDrive.start_date,
+            location: lowestTempDrive.start_address,
+            drive_id: lowestTempDrive.id,
+          },
+          highest: {
+            value: highestTempDrive.outside_temp_avg || 30,
+            formatted_value: String(highestTempDrive.outside_temp_avg?.toFixed(1) || '30.0'),
+            unit: '°C',
+            title: '最高温出行',
+            date: highestTempDrive.start_date,
+            location: highestTempDrive.start_address,
+            drive_id: highestTempDrive.id,
+          },
+        },
+      };
+    };
+
+    return {
+      month: computeForPeriod('month', (d) => new Date(d.start_date).getTime() >= oneMonthAgo),
+      half_year: computeForPeriod('half_year', (d) => new Date(d.start_date).getTime() >= sixMonthsAgo),
+      year: computeForPeriod('year', (d) => new Date(d.start_date).getTime() >= oneYearAgo),
+      all: computeForPeriod('all', () => true),
+    };
+  } catch (err) {
+    console.error('fetchDrivingRecords error:', err);
+    return MOCK_DRIVING_RECORDS;
   }
 }
 

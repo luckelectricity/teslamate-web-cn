@@ -62,6 +62,11 @@ export interface DriveSummary {
   ascent?: number;
   descent?: number;
   outside_temp_avg?: number;
+  // ⚡ 智能合并字段
+  is_merged?: boolean;
+  merged_count?: number;
+  merged_drive_ids?: number[];
+  stopover_duration_min?: number;
 }
 
 // 行程详情与轨迹点
@@ -235,3 +240,36 @@ export interface LifetimeStats {
   sentry_duration_hours: number;
   sleep_duration_hours: number;
 }
+
+// 🏆 极值单项记录
+export interface DrivingRecordItem {
+  value: number;
+  formatted_value: string;
+  unit: string;
+  title: string;
+  sub_text?: string;
+  date: string;
+  location?: string;
+  drive_id?: number;
+  secondary_value?: string;
+}
+
+// 🏆 某时间周期下的完整极值榜单
+export interface DrivingRecords {
+  period: 'month' | 'half_year' | 'year' | 'all';
+  max_speed: DrivingRecordItem;
+  longest_distance: DrivingRecordItem;
+  longest_duration: DrivingRecordItem;
+  best_efficiency: DrivingRecordItem;
+  max_power: DrivingRecordItem;
+  max_regen: DrivingRecordItem;
+  max_ascent: DrivingRecordItem;
+  extreme_temp: {
+    lowest: DrivingRecordItem;
+    highest: DrivingRecordItem;
+  };
+}
+
+export type RecordPeriod = 'month' | 'half_year' | 'year' | 'all';
+export type DrivingRecordsByPeriod = Record<RecordPeriod, DrivingRecords>;
+

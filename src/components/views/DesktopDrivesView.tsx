@@ -67,7 +67,14 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
                 return (
                   <tr key={drive.id} className="hover:bg-zinc-800/40 transition-colors">
                     <td className="py-3.5 font-mono text-zinc-400 whitespace-nowrap">
-                      {formatDateTime(drive.start_date)}
+                      <div>{formatDateTime(drive.start_date)}</div>
+                      {drive.is_merged && (
+                        <div className="mt-1">
+                          <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-full font-medium">
+                            ⚡ 合并{drive.merged_count}段
+                          </span>
+                        </div>
+                      )}
                     </td>
                     <td className="py-3.5 max-w-xs truncate">
                       <div className="truncate text-zinc-200">
