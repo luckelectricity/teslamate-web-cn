@@ -66,10 +66,21 @@ export function FootprintMap({
 
         path.points.forEach((pt) => allLatLngs.push(pt));
 
+        // 1. 底层发光微光晕
+        const glowLine = L.polyline(path.points, {
+          color: '#ef4444',
+          weight: 6,
+          opacity: 0.3,
+          lineCap: 'round',
+          lineJoin: 'round',
+        });
+        glowLine.addTo(featureGroup);
+
+        // 2. 表层鲜亮核心轨迹
         const polyline = L.polyline(path.points, {
-          color: '#E82127', // 特斯拉红
-          weight: 3.5,
-          opacity: 0.65,
+          color: '#ff2a32', // 特斯拉鲜红
+          weight: 3,
+          opacity: 0.85,
           lineCap: 'round',
           lineJoin: 'round',
         });
@@ -80,10 +91,10 @@ export function FootprintMap({
         });
 
         polyline.bindPopup(`
-          <div style="font-family: sans-serif; font-size: 12px; color: #18181b; line-height: 1.5;">
-            <div style="font-weight: bold; color: #dc2626;">🚗 ${path.distance} km 行程</div>
+          <div style="font-family: sans-serif; font-size: 12px; color: #18181b; line-height: 1.5; padding: 2px;">
+            <div style="font-weight: bold; color: #dc2626; font-size: 13px;">🚗 ${path.distance} km 行程</div>
             <div style="color: #71717a; font-size: 11px; margin-top: 2px;">${formatDateTime(path.start_date)}</div>
-            <div style="margin-top: 4px;"><strong>起：</strong>${path.start_address}</div>
+            <div style="margin-top: 6px;"><strong>起：</strong>${path.start_address}</div>
             <div><strong>终：</strong>${path.end_address}</div>
           </div>
         `);

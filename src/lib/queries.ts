@@ -1332,50 +1332,74 @@ export async function fetchFootprintDrives(carId?: number): Promise<FootprintDri
   if (!pool) return [];
 
   try {
-    const drives = await fetchDrives(carId, 100, 0);
-    const validDrives = drives.filter((d) => d.distance >= 0.2);
+    // 1. 获取所有合并后的行程（覆盖完整历史）
+    const drives = await fetchDrives(carId, 200, 0, true);
+    const validDrives = drives.filter((d) => (d.distance || 0) >= 0.2);
 
     if (validDrives.length === 0) return [];
 
-    const driveIds = validDrives.map((d) => d.id);
-    
-    // 抽取每个行程的关键轨迹点
+    // 2. 收集所有需要查询的真实底层 drive_id（展开合并行程的子 ID）
+    const allSubDriveIds: number[] = [];
+    validDrives.forEach((d) => {
+      if (d.merged_drive_ids && d.merged_drive_ids.length > 0) {
+        allSubDriveIds.push(...d.merged_drive_ids);
+      } else {
+        allSubDriveIds.push(d.id);
+      }
+    });
+
+    const uniqueDriveIds = Array.from(new Set(allSubDriveIds));
+
+    // 3. 高效抽样提取每个行程的关键轨迹点 (保证拐角平滑与大环线完整)
     const posRes = await pool.query(
-      `SELECT drive_id, latitude, longitude
+      `SELECT drive_id, latitude, longitude, date
        FROM (
          SELECT 
            drive_id, 
            latitude, 
            longitude,
+           date,
            ROW_NUMBER() OVER (PARTITION BY drive_id ORDER BY date ASC) as rn,
            COUNT(*) OVER (PARTITION BY drive_id) as total_pts
          FROM positions
          WHERE drive_id = ANY($1::int[]) AND latitude IS NOT NULL AND longitude IS NOT NULL
        ) sub
-       WHERE rn = 1 OR rn = total_pts OR (rn % GREATEST(1, FLOOR(total_pts / 80.0)::int) = 0)
-       ORDER BY drive_id DESC, rn ASC`,
-      [driveIds]
+       WHERE rn = 1 OR rn = total_pts OR (rn % GREATEST(1, FLOOR(total_pts / 120.0)::int) = 0)
+       ORDER BY drive_id DESC, date ASC`,
+      [uniqueDriveIds]
     );
 
-    const ptsByDrive = new Map<number, [number, number][]>();
+    // 4. 将点按底层 drive_id 归类并进行 GCJ-02 坐标纠偏
+    const ptsBySubDrive = new Map<number, [number, number][]>();
     for (const row of posRes.rows) {
       const dId = Number(row.drive_id);
-      const list = ptsByDrive.get(dId) || [];
+      const list = ptsBySubDrive.get(dId) || [];
       const [gcjLng, gcjLat] = wgs84ToGcj02(Number(row.longitude), Number(row.latitude));
       list.push([gcjLat, gcjLng]);
-      ptsByDrive.set(dId, list);
+      ptsBySubDrive.set(dId, list);
     }
 
+    // 5. 按照合并行程的顺序将各子行程的轨迹点拼接成完整连续大轨迹
     return validDrives
-      .map((d) => ({
-        id: d.id,
-        start_date: d.start_date,
-        distance: d.distance,
-        duration_min: d.duration_min,
-        start_address: d.start_address,
-        end_address: d.end_address,
-        points: ptsByDrive.get(d.id) || [],
-      }))
+      .map((d) => {
+        const subIds = d.merged_drive_ids && d.merged_drive_ids.length > 0 ? d.merged_drive_ids : [d.id];
+        const combinedPoints: [number, number][] = [];
+
+        for (const subId of subIds) {
+          const subPts = ptsBySubDrive.get(subId) || [];
+          combinedPoints.push(...subPts);
+        }
+
+        return {
+          id: d.id,
+          start_date: d.start_date,
+          distance: d.distance,
+          duration_min: d.duration_min,
+          start_address: d.start_address,
+          end_address: d.end_address,
+          points: combinedPoints,
+        };
+      })
       .filter((d) => d.points.length >= 2);
   } catch (err) {
     console.error('fetchFootprintDrives error:', err);
