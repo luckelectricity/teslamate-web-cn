@@ -6,6 +6,8 @@ import { formatDuration, formatDateTime } from '@/lib/formatters';
 import { Moon, Shield, ArrowLeft, Clock, MapPin, Zap, Thermometer, Battery } from 'lucide-react';
 import { ParkingDetailCharts } from '@/components/charts/ParkingDetailCharts';
 
+export const dynamic = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' ? 'auto' : 'force-dynamic';
+
 export async function generateStaticParams() {
   return [{ id: '301' }, { id: '300' }];
 }

@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { fetchDriveDetail } from '@/lib/queries';
 import { DriveDetailClient } from '@/components/views/DriveDetailClient';
 
+export const dynamic = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' ? 'auto' : 'force-dynamic';
+
 interface DriveDetailPageProps {
   params: {
     id: string;

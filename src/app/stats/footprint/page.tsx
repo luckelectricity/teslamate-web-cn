@@ -4,6 +4,8 @@ import { fetchVisitedLocations, fetchDrives, fetchFootprintDrives } from '@/lib/
 import { ArrowLeft, MapPin, Home, Compass, Route } from 'lucide-react';
 import { FootprintMap } from '@/components/map/FootprintMap';
 
+export const dynamic = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' ? 'auto' : 'force-dynamic';
+
 export default async function FootprintPage() {
   const [locations, drives, paths] = await Promise.all([
     fetchVisitedLocations(),

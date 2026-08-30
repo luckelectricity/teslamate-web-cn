@@ -6,6 +6,8 @@ import { formatEnergy, formatDuration, formatCurrency, formatDateTime } from '@/
 import { Zap, Home, ArrowLeft, Clock, MapPin, BatteryCharging, Gauge } from 'lucide-react';
 import { ChargeDetailCharts } from '@/components/charts/ChargeDetailCharts';
 
+export const dynamic = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' ? 'auto' : 'force-dynamic';
+
 export async function generateStaticParams() {
   return [{ id: '201' }, { id: '200' }];
 }

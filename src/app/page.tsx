@@ -1,6 +1,8 @@
 import { fetchCars, fetchDrives, fetchCharges, fetchLifetimeStats } from '@/lib/queries';
 import { DashboardSwitcher } from '@/components/views/DashboardSwitcher';
 
+export const dynamic = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' ? 'auto' : 'force-dynamic';
+
 export default async function HomePage() {
   const [cars, drives, charges, stats] = await Promise.all([
     fetchCars(),

@@ -37,26 +37,26 @@ import {
 
 const isDemo = () => process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
-// 基础安全默认值
+// 生产环境安全兜底空车（不含任何伪造地点与假VIN）
 const DEFAULT_EMPTY_CAR: Car = {
   id: 1,
-  name: process.env.DEFAULT_CAR_NAME || 'My Tesla',
-  model: 'Model Y',
-  trim_badging: '50',
-  vin: '5YJ3E1EB8NF000000',
+  name: 'Tesla',
+  model: 'Y',
+  trim_badging: '',
+  vin: '',
   exterior_color: 'SolidBlack',
   wheel_type: 'Standard',
-  usable_battery_level: 80,
-  battery_level: 80,
-  ideal_battery_range_km: 350.0,
-  est_battery_range_km: 330.0,
-  odometer: 1000.0,
+  usable_battery_level: 0,
+  battery_level: 0,
+  ideal_battery_range_km: 0,
+  est_battery_range_km: 0,
+  odometer: 0,
   speed: 0,
   power: 0,
-  state: 'online',
-  since: new Date().toISOString(),
-  inside_temp: 24.0,
-  outside_temp: 25.0,
+  state: 'offline',
+  since: null,
+  inside_temp: null,
+  outside_temp: null,
   is_climate_on: false,
   is_locked: true,
   is_sentry_mode: false,
@@ -64,14 +64,14 @@ const DEFAULT_EMPTY_CAR: Car = {
   windows_open: false,
   frunk_open: false,
   trunk_open: false,
-  tire_pressure_fl: 2.9,
-  tire_pressure_fr: 2.9,
-  tire_pressure_rl: 2.9,
-  tire_pressure_rr: 2.9,
-  latitude: 34.22020,
-  longitude: 108.96420,
-  address: '西安市 · 雁塔区大雁塔北广场',
-  version: '2024.32.10',
+  tire_pressure_fl: 0,
+  tire_pressure_fr: 0,
+  tire_pressure_rl: 0,
+  tire_pressure_rr: 0,
+  latitude: null,
+  longitude: null,
+  address: '未获取到定位',
+  version: '',
   battery_heater: false,
 };
 
@@ -81,7 +81,7 @@ const DEFAULT_EMPTY_CAR: Car = {
 export async function fetchCars(): Promise<Car[]> {
   if (isDemo()) return [MOCK_CAR];
   const pool = getDbPool();
-  if (!pool) return [DEFAULT_EMPTY_CAR];
+  if (!pool) return [];
 
   try {
     const query = `
@@ -125,7 +125,7 @@ export async function fetchCars(): Promise<Car[]> {
     `;
 
     const res = await pool.query(query);
-    if (res.rows.length === 0) return [DEFAULT_EMPTY_CAR];
+    if (res.rows.length === 0) return [];
 
     return res.rows.map((row) => {
       const mqttState = getCarMqttState(row.id);
@@ -173,7 +173,7 @@ export async function fetchCars(): Promise<Car[]> {
     });
   } catch (err) {
     console.error('fetchCars DB error:', err);
-    return [DEFAULT_EMPTY_CAR];
+    return [];
   }
 }
 
