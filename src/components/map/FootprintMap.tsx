@@ -3,13 +3,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { FootprintDrivePath, VisitedLocation } from '@/types';
 import { formatDateTime } from '@/lib/formatters';
-import { Maximize2, Layers, Navigation } from 'lucide-react';
+import { Maximize2, Layers, Navigation, Sparkles } from 'lucide-react';
 
 interface FootprintMapProps {
   paths: FootprintDrivePath[];
   locations?: VisitedLocation[];
   height?: string;
   className?: string;
+  selectedPathId?: number | null;
+  onSelectPath?: (path: FootprintDrivePath | null) => void;
 }
 
 export function FootprintMap({
@@ -17,16 +19,18 @@ export function FootprintMap({
   locations = [],
   height = '520px',
   className = '',
+  selectedPathId = null,
+  onSelectPath,
 }: FootprintMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
-  const [selectedPath, setSelectedPath] = useState<FootprintDrivePath | null>(null);
+  const polylinesMapRef = useRef<Map<number, { poly: any; glow: any }>>(new Map());
 
   useEffect(() => {
     let isMounted = true;
 
     async function initMap() {
-      if (!mapContainerRef.current || paths.length === 0) return;
+      if (!mapContainerRef.current) return;
 
       const L = (await import('leaflet')).default;
       if (!isMounted) return;
@@ -35,42 +39,45 @@ export function FootprintMap({
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
+        polylinesMapRef.current.clear();
       }
 
-      // 默认初始中心（如果还没有点）
-      const defaultCenter: [number, number] = [34.223881, 108.825993];
+      // 默认初始中心（西安核心区）
+      const defaultCenter: [number, number] = [34.26, 108.94];
 
       const map = L.map(mapContainerRef.current, {
         attributionControl: false,
         zoomControl: true,
-      }).setView(defaultCenter, 12);
+      }).setView(defaultCenter, 11);
 
       mapInstanceRef.current = map;
 
-      // 高德地图暗色矢量图层（国内访问极速且与科技感深色 UI 完美契合）
+      // 高德地图暗色高精图层
       L.tileLayer(
         'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
         {
           subdomains: ['1', '2', '3', '4'],
           maxZoom: 18,
-          minZoom: 3,
+          minZoom: 4,
         }
       ).addTo(map);
 
       const allLatLngs: [number, number][] = [];
       const featureGroup = L.featureGroup();
 
-      // 绘制所有历史行程轨迹（重合路段自动物理叠加，呈现更亮的轨迹网）
+      // 绘制所有轨迹
       paths.forEach((path) => {
         if (!path.points || path.points.length < 2) return;
 
         path.points.forEach((pt) => allLatLngs.push(pt));
 
+        const isSelected = selectedPathId === path.id;
+
         // 1. 底层发光微光晕
         const glowLine = L.polyline(path.points, {
-          color: '#ef4444',
-          weight: 6,
-          opacity: 0.3,
+          color: isSelected ? '#38bdf8' : '#ef4444',
+          weight: isSelected ? 10 : 6,
+          opacity: isSelected ? 0.6 : (selectedPathId ? 0.15 : 0.3),
           lineCap: 'round',
           lineJoin: 'round',
         });
@@ -78,16 +85,17 @@ export function FootprintMap({
 
         // 2. 表层鲜亮核心轨迹
         const polyline = L.polyline(path.points, {
-          color: '#ff2a32', // 特斯拉鲜红
-          weight: 3,
-          opacity: 0.85,
+          color: isSelected ? '#00f2ff' : '#ff2a32',
+          weight: isSelected ? 4.5 : 3,
+          opacity: isSelected ? 1.0 : (selectedPathId ? 0.35 : 0.85),
           lineCap: 'round',
           lineJoin: 'round',
         });
 
-        // 绑定点击事件与弹窗
         polyline.on('click', () => {
-          setSelectedPath(path);
+          if (onSelectPath) {
+            onSelectPath(isSelected ? null : path);
+          }
         });
 
         polyline.bindPopup(`
@@ -100,13 +108,13 @@ export function FootprintMap({
         `);
 
         polyline.addTo(featureGroup);
+        polylinesMapRef.current.set(path.id, { poly: polyline, glow: glowLine });
       });
 
       featureGroup.addTo(map);
 
       // 标记家与常驻地
       if (allLatLngs.length > 0) {
-        // 第一条行程的起点通常是家
         const homePoint = paths[0]?.points[0] || allLatLngs[0];
         const homeIcon = L.divIcon({
           className: 'custom-home-pin',
@@ -125,12 +133,20 @@ export function FootprintMap({
           .bindPopup('🏠 常用出发点 (家里车位)');
       }
 
-      // 🌟 核心算法：全量轨迹最小包围盒自适应缩放（Auto-fit bounds）
-      if (allLatLngs.length > 0) {
+      // 自适应缩放
+      if (selectedPathId) {
+        const selected = paths.find((p) => p.id === selectedPathId);
+        if (selected && selected.points && selected.points.length > 0) {
+          map.fitBounds(L.latLngBounds(selected.points), {
+            padding: [50, 50],
+            maxZoom: 15,
+          });
+        }
+      } else if (allLatLngs.length > 0) {
         const bounds = L.latLngBounds(allLatLngs);
         map.fitBounds(bounds, {
           padding: [45, 45],
-          maxZoom: 15,
+          maxZoom: 14,
         });
       }
     }
@@ -144,7 +160,7 @@ export function FootprintMap({
         mapInstanceRef.current = null;
       }
     };
-  }, [paths]);
+  }, [paths, selectedPathId]);
 
   // 重置回全景视野
   const handleResetBounds = () => {
@@ -155,7 +171,7 @@ export function FootprintMap({
       if (L) {
         mapInstanceRef.current.fitBounds(L.latLngBounds(allLatLngs), {
           padding: [45, 45],
-          maxZoom: 15,
+          maxZoom: 14,
         });
       }
     }
@@ -187,10 +203,12 @@ export function FootprintMap({
           <span className="w-3 h-3 rounded-full bg-red-500 inline-block shadow-sm shadow-red-500/50" />
           <span>行车轨迹 ({paths.length} 段)</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-blue-500 inline-block shadow-sm shadow-blue-500/50" />
-          <span>常用驻留点</span>
-        </div>
+        {selectedPathId && (
+          <div className="flex items-center gap-1.5 text-cyan-400 font-medium">
+            <span className="w-3 h-3 rounded-full bg-cyan-400 inline-block shadow-sm shadow-cyan-400/50 animate-pulse" />
+            <span>已高亮选中单程</span>
+          </div>
+        )}
       </div>
     </div>
   );
