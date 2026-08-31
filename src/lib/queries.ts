@@ -1090,6 +1090,7 @@ export async function fetchLifetimeStats(carId?: number): Promise<LifetimeStats>
       SELECT 
         (SELECT COUNT(*) FROM drives WHERE ($1::int IS NULL OR car_id = $1)) as total_drives,
         (SELECT ROUND(COALESCE(MAX(odometer), 0)::numeric, 1) FROM positions WHERE ($1::int IS NULL OR car_id = $1)) as total_distance_km,
+        (SELECT ROUND(COALESCE(SUM(distance), 0)::numeric, 1) FROM drives WHERE ($1::int IS NULL OR car_id = $1)) as logged_drive_km,
         (SELECT ROUND((COALESCE(SUM(duration_min), 0) / 60.0)::numeric, 1) FROM drives WHERE ($1::int IS NULL OR car_id = $1)) as total_drive_duration_hours,
         (SELECT ROUND(COALESCE(SUM(CASE WHEN (start_ideal_range_km - end_ideal_range_km) > 0 THEN (start_ideal_range_km - end_ideal_range_km) * 0.155 ELSE 0.1 END), 0)::numeric, 1) FROM drives WHERE ($1::int IS NULL OR car_id = $1)) as total_energy_kwh,
         (SELECT COUNT(*) FROM charging_processes WHERE ($1::int IS NULL OR car_id = $1)) as total_charges,
@@ -1108,10 +1109,11 @@ export async function fetchLifetimeStats(carId?: number): Promise<LifetimeStats>
     const row = res.rows[0];
 
     const dist = Number(row.total_distance_km || 0);
+    const loggedDist = Number(row.logged_drive_km || dist);
     const chargeEnergy = Number(row.total_charge_energy_added || 0);
     const totalCost = Number(row.total_charge_cost || 0);
     const driveEnergy = Number(row.total_energy_kwh || 0);
-    const avgEff = dist > 0 && driveEnergy > 0 ? Math.round((driveEnergy * 1000) / dist) : 139;
+    const avgEff = loggedDist > 0 && driveEnergy > 0 ? Math.round((driveEnergy * 1000) / loggedDist) : 138;
 
     return {
       total_drives: Number(row.total_drives || 0),
