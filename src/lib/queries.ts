@@ -146,7 +146,7 @@ export async function fetchCars(): Promise<Car[]> {
         usable_battery_level: mqttState.usable_battery_level != null ? mqttState.usable_battery_level : Number(row.usable_battery_level || 76),
         ideal_battery_range_km: mqttState.rated_battery_range_km != null ? Number(mqttState.rated_battery_range_km.toFixed(1)) : Number(Number(row.ideal_battery_range_km || 331.2).toFixed(1)),
         est_battery_range_km: Number(Number(row.est_battery_range_km || 310.0).toFixed(1)),
-        odometer: mqttState.odometer != null ? Number(mqttState.odometer.toFixed(1)) : Number(Number(row.odometer || 498.8).toFixed(1)),
+        odometer: mqttState.odometer != null ? Number(mqttState.odometer.toFixed(1)) : Number(Number(row.odometer || 0).toFixed(1)),
         speed: row.speed != null ? Number(row.speed) : 0,
         power: row.power != null ? Number(row.power) : 0,
         state: mqttState.state || row.state || 'online',
@@ -1078,7 +1078,7 @@ export async function fetchVisitedLocations(carId?: number): Promise<VisitedLoca
 }
 
 /**
- * 真实全生命周期统计数据
+ * 4. 获取生命周期核心统计
  */
 export async function fetchLifetimeStats(carId?: number): Promise<LifetimeStats> {
   if (isDemo()) return MOCK_LIFETIME_STATS;
@@ -1091,49 +1091,43 @@ export async function fetchLifetimeStats(carId?: number): Promise<LifetimeStats>
         (SELECT COUNT(*) FROM drives WHERE ($1::int IS NULL OR car_id = $1)) as total_drives,
         (SELECT ROUND(COALESCE(MAX(odometer), 0)::numeric, 1) FROM positions WHERE ($1::int IS NULL OR car_id = $1)) as total_distance_km,
         (SELECT ROUND((COALESCE(SUM(duration_min), 0) / 60.0)::numeric, 1) FROM drives WHERE ($1::int IS NULL OR car_id = $1)) as total_drive_duration_hours,
+        (SELECT ROUND(COALESCE(SUM(CASE WHEN (start_ideal_range_km - end_ideal_range_km) > 0 THEN (start_ideal_range_km - end_ideal_range_km) * 0.155 ELSE 0.1 END), 0)::numeric, 1) FROM drives WHERE ($1::int IS NULL OR car_id = $1)) as total_energy_kwh,
         (SELECT COUNT(*) FROM charging_processes WHERE ($1::int IS NULL OR car_id = $1)) as total_charges,
         (SELECT ROUND(COALESCE(SUM(charge_energy_added), 0)::numeric, 1) FROM charging_processes WHERE ($1::int IS NULL OR car_id = $1)) as total_charge_energy_added,
         (SELECT ROUND(COALESCE(SUM(COALESCE(tc.cost_tou, cp.cost, cp.charge_energy_added * 0.311)), 0)::numeric, 2) 
          FROM charging_processes cp 
          LEFT JOIN charging_processes_tou_cost tc ON cp.id = tc.charging_process_id
          WHERE ($1::int IS NULL OR cp.car_id = $1)) as total_charge_cost,
-        (SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(end_date, NOW()) - start_date)) / 3600) FILTER (WHERE state = 'asleep'), 0) 
+        (SELECT ROUND(COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(end_date, NOW()) - start_date)) / 3600) FILTER (WHERE state = 'online'), 0)::numeric, 1) 
+         FROM states WHERE ($1::int IS NULL OR car_id = $1)) as sentry_hours,
+        (SELECT ROUND(COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(end_date, NOW()) - start_date)) / 3600) FILTER (WHERE state = 'asleep'), 0)::numeric, 1) 
          FROM states WHERE ($1::int IS NULL OR car_id = $1)) as sleep_hours;
     `;
 
     const res = await pool.query(statsQuery, [carId || null]);
     const row = res.rows[0];
 
-    const dist = Number(row.total_distance_km || 498.8);
-    const chargeEnergy = Number(row.total_charge_energy_added || 98.0);
-    const totalCost = Number(row.total_charge_cost || 33.56);
+    const dist = Number(row.total_distance_km || 0);
+    const chargeEnergy = Number(row.total_charge_energy_added || 0);
+    const totalCost = Number(row.total_charge_cost || 0);
+    const driveEnergy = Number(row.total_energy_kwh || 0);
+    const avgEff = dist > 0 && driveEnergy > 0 ? Math.round((driveEnergy * 1000) / dist) : 139;
 
     return {
-      total_drives: Number(row.total_drives || 50),
+      total_drives: Number(row.total_drives || 0),
       total_distance_km: dist,
-      total_drive_duration_hours: Number(row.total_drive_duration_hours || 14.8),
-      total_energy_kwh: 55.2,
-      avg_efficiency_wh_km: 143,
-      total_charges: Number(row.total_charges || 4),
+      total_drive_duration_hours: Number(row.total_drive_duration_hours || 0),
+      total_energy_kwh: driveEnergy,
+      avg_efficiency_wh_km: avgEff,
+      total_charges: Number(row.total_charges || 0),
       total_charge_energy_added: chargeEnergy,
       total_charge_cost: totalCost,
-      sentry_duration_hours: 48,
-      sleep_duration_hours: Number(Number(row.sleep_hours || 94).toFixed(1)),
+      sentry_duration_hours: Number(row.sentry_hours || 0),
+      sleep_duration_hours: Number(row.sleep_hours || 0),
     };
   } catch (err) {
     console.error('fetchLifetimeStats error:', err);
-    return {
-      total_drives: 50,
-      total_distance_km: 498.8,
-      total_drive_duration_hours: 14.8,
-      total_energy_kwh: 55.2,
-      avg_efficiency_wh_km: 143,
-      total_charges: 4,
-      total_charge_energy_added: 98.0,
-      total_charge_cost: 33.56,
-      sentry_duration_hours: 48,
-      sleep_duration_hours: 94.0,
-    };
+    return MOCK_LIFETIME_STATS;
   }
 }
 

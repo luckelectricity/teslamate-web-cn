@@ -1,13 +1,18 @@
 import React from 'react';
 import Link from 'next/link';
-import { fetchBatteryHealth } from '@/lib/queries';
+import { fetchBatteryHealth, fetchCars } from '@/lib/queries';
 import { ArrowLeft, Activity, BatteryCharging, Award } from 'lucide-react';
 import { BatteryHealthCharts } from '@/components/charts/BatteryHealthCharts';
 
 export const dynamic = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' ? 'auto' : 'force-dynamic';
 
 export default async function BatteryHealthPage() {
-  const health = await fetchBatteryHealth();
+  const [health, cars] = await Promise.all([
+    fetchBatteryHealth(),
+    fetchCars(),
+  ]);
+  const car = cars[0];
+  const currentKm = car?.odometer || 699.9;
 
   return (
     <div className="space-y-4 pb-24 pt-2 px-3 max-w-4xl mx-auto">
@@ -86,7 +91,7 @@ export default async function BatteryHealthPage() {
           <BatteryCharging className="w-4 h-4 text-emerald-400" />
           <span>电池衰减走势对比 (基准线 vs 您的爱车)</span>
         </h2>
-        <BatteryHealthCharts currentKm={498.8} fullRange={health.estimated_full_range_km} />
+        <BatteryHealthCharts currentKm={currentKm} fullRange={health.estimated_full_range_km} />
       </div>
 
       {/* 电池保养建议 */}
