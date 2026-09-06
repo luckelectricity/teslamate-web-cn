@@ -132,47 +132,95 @@ export function CarMilestonesCard({ initialData }: CarMilestonesCardProps) {
           </div>
         </div>
 
-        {/* 提车日期设置与状态 */}
+        {/* 提车日期设置按钮 */}
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          {!isEditingDate ? (
-            <button
-              onClick={() => setIsEditingDate(true)}
-              className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white bg-zinc-800/80 hover:bg-zinc-800 px-3 py-1.5 rounded-xl border border-zinc-700/60 transition-all active:scale-95"
-            >
-              <Calendar className="w-3.5 h-3.5 text-amber-400" />
-              <span>提车日: {data.delivery_date}</span>
-              <Edit3 className="w-3 h-3 text-zinc-500 ml-0.5" />
-            </button>
-          ) : (
-            <div className="flex items-center gap-1.5 bg-zinc-950 p-1 rounded-xl border border-zinc-700">
+          <button
+            onClick={() => setIsEditingDate(true)}
+            className="inline-flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white bg-zinc-800/90 hover:bg-zinc-750 px-3.5 py-1.5 rounded-xl border border-zinc-700/80 transition-all active:scale-95 shadow-sm group"
+          >
+            <Calendar className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+            <span>提车日: {data.delivery_date}</span>
+            <Edit3 className="w-3 h-3 text-zinc-400 ml-0.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* 📅 提车日期修改专属模态弹窗 (Modal) */}
+      {isEditingDate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-zinc-900 border border-zinc-700/80 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 relative">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">修改爱车提车日期</h3>
+                  <p className="text-xs text-zinc-400 mt-0.5">将写入车辆数据库，多端设备跨浏览器实时同步</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsEditingDate(false)}
+                className="p-1.5 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <label className="block text-xs font-medium text-zinc-300">
+                选择提车日期
+              </label>
               <input
                 type="date"
                 value={inputDate}
                 onChange={(e) => setInputDate(e.target.value)}
-                className="bg-transparent text-xs text-white px-2 py-1 outline-none font-mono"
+                onClick={(e) => {
+                  try {
+                    e.currentTarget.showPicker();
+                  } catch {}
+                }}
+                className="w-full bg-zinc-950 border border-zinc-700 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-500 transition-colors [color-scheme:dark] cursor-pointer"
               />
+
+              {/* 快捷选择标签 */}
+              <div className="flex items-center gap-2 pt-1 text-xs">
+                <span className="text-zinc-500 text-[11px]">快捷选择:</span>
+                <button
+                  type="button"
+                  onClick={() => setInputDate('2026-08-16')}
+                  className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors border border-zinc-700/60"
+                >
+                  2026-08-16 (默认)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInputDate(new Date().toISOString().split('T')[0])}
+                  className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors border border-zinc-700/60"
+                >
+                  今天
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-zinc-800">
+              <button
+                onClick={() => setIsEditingDate(false)}
+                className="px-4 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+              >
+                取消
+              </button>
               <button
                 onClick={handleSaveDeliveryDate}
-                disabled={isSaving}
-                className="p-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
-                title="保存"
+                disabled={isSaving || !inputDate}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-amber-500 hover:bg-amber-400 disabled:opacity-50 transition-colors flex items-center gap-1.5 shadow-md shadow-amber-500/20"
               >
-                <Check className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => {
-                  setInputDate(data.delivery_date);
-                  setIsEditingDate(false);
-                }}
-                className="p-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors"
-                title="取消"
-              >
-                <X className="w-3.5 h-3.5" />
+                {isSaving ? '正在保存...' : '确认保存并同步'}
               </button>
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {saveMessage && (
         <div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20">
