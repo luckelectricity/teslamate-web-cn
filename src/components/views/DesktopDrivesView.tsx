@@ -53,11 +53,11 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
               <span>历史行程与驾驶分析</span>
             </h1>
             <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              {filteredDrives.length} 次行程
+              {filteredDrives.length} 段连贯行程
             </span>
           </div>
           <p className="text-xs text-zinc-400 mt-1">
-            已开启智能行程合并算法，10分钟内临时锁车已自动合并为完整连贯行程
+            已开启智能行程合并算法，10分钟内临时锁车已自动合并为完整连贯行程 (共记录 {drives.length} 段)
           </p>
         </div>
 

@@ -24,11 +24,11 @@ export function DesktopDashboard({ car, drives, charges, stats }: DesktopDashboa
       {/* 四大核心汇总指标 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="累计行驶里程"
+          title="车辆总里程"
           value={stats.total_distance_km.toLocaleString('zh-CN')}
           unit="km"
           icon={Gauge}
-          subtext={`累计已行驶 ${stats.total_drives} 次行程`}
+          subtext={`已记录 ${stats.logged_distance_km ? stats.logged_distance_km.toFixed(1) : stats.total_distance_km} km · ${stats.total_drives} 段连贯行程`}
           highlight
         />
         <StatCard

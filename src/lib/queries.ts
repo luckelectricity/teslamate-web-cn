@@ -1088,8 +1088,9 @@ export async function fetchLifetimeStats(carId?: number): Promise<LifetimeStats>
   try {
     const statsQuery = `
       SELECT 
-        (SELECT COUNT(*) FROM drives WHERE ($1::int IS NULL OR car_id = $1)) as total_drives,
+        (SELECT COUNT(*) FROM drives WHERE ($1::int IS NULL OR car_id = $1)) as raw_total_drives,
         (SELECT ROUND(COALESCE(MAX(odometer), 0)::numeric, 1) FROM positions WHERE ($1::int IS NULL OR car_id = $1)) as total_distance_km,
+        (SELECT ROUND(COALESCE(MIN(odometer), 0)::numeric, 1) FROM positions WHERE ($1::int IS NULL OR car_id = $1)) as first_logged_odometer,
         (SELECT ROUND(COALESCE(SUM(distance), 0)::numeric, 1) FROM drives WHERE ($1::int IS NULL OR car_id = $1)) as logged_drive_km,
         (SELECT ROUND((COALESCE(SUM(duration_min), 0) / 60.0)::numeric, 1) FROM drives WHERE ($1::int IS NULL OR car_id = $1)) as total_drive_duration_hours,
         (SELECT ROUND(COALESCE(SUM(CASE WHEN (start_ideal_range_km - end_ideal_range_km) > 0 THEN (start_ideal_range_km - end_ideal_range_km) * 0.138 ELSE 0.05 END), 0)::numeric, 1) FROM drives WHERE ($1::int IS NULL OR car_id = $1)) as total_energy_kwh,
@@ -1105,19 +1106,32 @@ export async function fetchLifetimeStats(carId?: number): Promise<LifetimeStats>
          FROM states WHERE ($1::int IS NULL OR car_id = $1)) as sleep_hours;
     `;
 
-    const res = await pool.query(statsQuery, [carId || null]);
+    const [res, mergedDrives] = await Promise.all([
+      pool.query(statsQuery, [carId || null]),
+      fetchDrives(carId, 500, 0, true),
+    ]);
+
     const row = res.rows[0];
 
     const dist = Number(row.total_distance_km || 0);
     const loggedDist = Number(row.logged_drive_km || dist);
+    const firstOdo = Number(row.first_logged_odometer || 0);
+    const unloggedKm = firstOdo > 0 ? Number(firstOdo.toFixed(1)) : 0;
     const chargeEnergy = Number(row.total_charge_energy_added || 0);
     const totalCost = Number(row.total_charge_cost || 0);
     const driveEnergy = Number(row.total_energy_kwh || 0);
-    const avgEff = loggedDist > 0 && driveEnergy > 0 ? Math.round((driveEnergy * 1000) / loggedDist) : 138;
+    const avgEff = loggedDist > 0 && driveEnergy > 0 ? Math.round((driveEnergy * 1000) / loggedDist) : 122;
+
+    const mergedCount = mergedDrives.length;
+    const rawCount = Number(row.raw_total_drives || mergedCount);
 
     return {
-      total_drives: Number(row.total_drives || 0),
+      total_drives: mergedCount > 0 ? mergedCount : rawCount,
+      raw_total_drives: rawCount,
       total_distance_km: dist,
+      logged_distance_km: loggedDist,
+      first_logged_odometer: firstOdo,
+      unlogged_distance_km: unloggedKm,
       total_drive_duration_hours: Number(row.total_drive_duration_hours || 0),
       total_energy_kwh: driveEnergy,
       avg_efficiency_wh_km: avgEff,

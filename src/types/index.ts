@@ -229,8 +229,12 @@ export interface VisitedLocation {
 
 // 全生命周期统计
 export interface LifetimeStats {
-  total_drives: number;
-  total_distance_km: number;
+  total_drives: number; // 统一为智能合并后的连贯行程数 (如 69 段)
+  raw_total_drives?: number; // 原始底表记录总数 (如 101 次)
+  total_distance_km: number; // 车辆仪表盘全局总里程 (如 1,034.7 km)
+  logged_distance_km?: number; // 实际记录行程行驶总里程 (如 921.5 km)
+  first_logged_odometer?: number; // 首次接入 TeslaMate 时的里程读数 (如 113.6 km)
+  unlogged_distance_km?: number; // 接入前未记录的里程 (如 113.2 km)
   total_drive_duration_hours: number;
   total_energy_kwh: number;
   avg_efficiency_wh_km: number;

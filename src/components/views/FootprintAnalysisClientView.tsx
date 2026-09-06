@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { FootprintDrivePath, VisitedLocation, DriveSummary } from '@/types';
+import { FootprintDrivePath, VisitedLocation, DriveSummary, LifetimeStats } from '@/types';
 import { FootprintMap } from '@/components/map/FootprintMap';
 import { formatDistance, formatDuration, formatEnergy, formatDateTime, formatEfficiency } from '@/lib/formatters';
 import { 
@@ -26,12 +26,14 @@ interface FootprintAnalysisClientViewProps {
   paths: FootprintDrivePath[];
   locations: VisitedLocation[];
   drives: DriveSummary[];
+  stats?: LifetimeStats;
 }
 
 export function FootprintAnalysisClientView({
   paths,
   locations,
   drives,
+  stats,
 }: FootprintAnalysisClientViewProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<FootprintPeriod>('all');
   const [activePathId, setActivePathId] = useState<number | null>(null);
@@ -144,9 +146,18 @@ export function FootprintAnalysisClientView({
 
         {/* 动态指标栏 */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center text-xs pt-1">
-          <div className="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/60">
-            <div className="text-[11px] text-zinc-400">探索行驶里程</div>
-            <div className="text-base font-bold text-white mt-0.5">{totalDistance.toFixed(1)} <span className="text-[10px] text-zinc-400 font-normal">km</span></div>
+          <div className="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/60 flex flex-col justify-between">
+            <div className="text-[11px] text-zinc-400">
+              {selectedPeriod === 'all' ? '探索行驶轨迹' : '探索行驶里程'}
+            </div>
+            <div className="text-base font-bold text-white mt-0.5">
+              {totalDistance.toFixed(1)} <span className="text-[10px] text-zinc-400 font-normal">km</span>
+            </div>
+            {selectedPeriod === 'all' && stats?.total_distance_km ? (
+              <div className="text-[10px] text-zinc-500 mt-0.5">
+                车机总里程 {stats.total_distance_km.toFixed(1)} km
+              </div>
+            ) : null}
           </div>
 
           <div className="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/60">

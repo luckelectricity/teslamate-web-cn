@@ -122,11 +122,12 @@ export function MobileDashboard({ car, latestDrive, latestCharge, stats }: Mobil
 
       {/* 车辆生命周期总览简报 */}
       <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-3.5 text-xs text-zinc-400 space-y-2">
-        <div className="font-semibold text-zinc-200">
-          📊 真实生命周期概览 ({stats.total_distance_km.toFixed(1)} km)
+        <div className="flex items-center justify-between font-semibold text-zinc-200">
+          <span>📊 车辆总里程 ({stats.total_distance_km.toFixed(1)} km)</span>
+          <span className="text-[10px] text-zinc-400 font-normal">已记录 {stats.logged_distance_km ? stats.logged_distance_km.toFixed(1) : stats.total_distance_km} km</span>
         </div>
         <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
-          <div>累计行程: <strong className="text-white">{stats.total_drives} 次</strong></div>
+          <div>连贯行程: <strong className="text-white">{stats.total_drives} 段</strong></div>
           <div>驾驶时长: <strong className="text-white">{stats.total_drive_duration_hours} 小时</strong></div>
           <div>累计充入: <strong className="text-white">{stats.total_charge_energy_added} kWh</strong></div>
           <div>

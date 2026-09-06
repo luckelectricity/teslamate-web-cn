@@ -53,7 +53,7 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
             <span>行程记录与驾驶历史</span>
           </h2>
           <span className="text-xs font-semibold text-blue-400">
-            {filteredDrives.length} 次行程
+            {filteredDrives.length} 段连贯行程
           </span>
         </div>
 
