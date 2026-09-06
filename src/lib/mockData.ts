@@ -885,3 +885,68 @@ export const MOCK_DRIVING_RECORDS: DrivingRecordsByPeriod = {
   },
 };
 
+export const MOCK_CAR_MILESTONES: any = {
+  car_id: 1,
+  delivery_date: '2026-08-16',
+  days_since_delivery: 21,
+  current_odometer: 1034.7,
+  daily_avg_km: 47.9,
+  milestones: [
+    {
+      target_km: 1000,
+      label: '1,000 km 破千纪念',
+      is_achieved: true,
+      achieved_date: '2026-09-06T07:56:52.231Z',
+      achieved_duration_days: 21,
+      achieved_duration_hours: 15,
+      achieved_duration_text: '历时 21 天 16 小时',
+      drive_id: 103,
+    },
+    {
+      target_km: 5000,
+      label: '5,000 km 磨合达标',
+      is_achieved: false,
+      current_progress_percent: 20.7,
+      remaining_km: 3965.3,
+      predicted_days_remaining: 83,
+      predicted_date: '2026-11-28',
+    },
+    {
+      target_km: 10000,
+      label: '10,000 km 黄金里程',
+      is_achieved: false,
+      current_progress_percent: 10.3,
+      remaining_km: 8965.3,
+      predicted_days_remaining: 187,
+      predicted_date: '2027-03-12',
+    },
+    {
+      target_km: 20000,
+      label: '20,000 km 首保大关',
+      is_achieved: false,
+      current_progress_percent: 5.2,
+      remaining_km: 18965.3,
+      predicted_days_remaining: 396,
+      predicted_date: '2027-10-07',
+    },
+    {
+      target_km: 50000,
+      label: '50,000 km 半程王者',
+      is_achieved: false,
+      current_progress_percent: 2.1,
+      remaining_km: 48965.3,
+      predicted_days_remaining: 1022,
+      predicted_date: '2029-06-25',
+    },
+    {
+      target_km: 100000,
+      label: '100,000 km 传奇勋章',
+      is_achieved: false,
+      current_progress_percent: 1.0,
+      remaining_km: 98965.3,
+      predicted_days_remaining: 2066,
+      predicted_date: '2032-05-04',
+    },
+  ],
+};
+

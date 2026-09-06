@@ -274,6 +274,32 @@ export interface DrivingRecords {
   };
 }
 
+// 🎯 提车里程碑单项事件
+export interface CarMilestone {
+  target_km: number;
+  label: string;
+  is_achieved: boolean;
+  achieved_date?: string; // ISO 日期
+  achieved_duration_days?: number;
+  achieved_duration_hours?: number;
+  achieved_duration_text?: string; // 如 "历时 21 天 16 小时"
+  drive_id?: number; // 达成里程碑时的行程 ID
+  current_progress_percent?: number;
+  remaining_km?: number;
+  predicted_days_remaining?: number;
+  predicted_date?: string; // 预计达成日期
+}
+
+// 🎯 提车里程碑总览数据
+export interface CarMilestonesData {
+  car_id: number;
+  delivery_date: string; // "2026-08-16"
+  days_since_delivery: number;
+  current_odometer: number;
+  daily_avg_km: number;
+  milestones: CarMilestone[];
+}
+
 export type RecordPeriod = 'month' | 'half_year' | 'year' | 'all';
 export type DrivingRecordsByPeriod = Record<RecordPeriod, DrivingRecords>;
 

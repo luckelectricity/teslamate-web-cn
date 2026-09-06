@@ -23,20 +23,26 @@ import {
   ThermometerSun
 } from 'lucide-react';
 import { formatCurrency, formatEnergy, formatDuration } from '@/lib/formatters';
+import { CarMilestonesData } from '@/types';
+import { CarMilestonesCard } from '@/components/cards/CarMilestonesCard';
 
 interface StatsClientViewProps {
   stats: LifetimeStats;
   savings: SavingsAnalysis;
   energy: EnergyBreakdown;
   records: DrivingRecordsByPeriod;
+  milestones: CarMilestonesData;
 }
 
-export function StatsClientView({ stats, savings, energy, records }: StatsClientViewProps) {
+export function StatsClientView({ stats, savings, energy, records, milestones }: StatsClientViewProps) {
   const { isMobileLayout } = useViewModeStore();
 
   return (
     <div className={`space-y-5 pb-24 pt-2 px-3 mx-auto ${isMobileLayout ? 'max-w-lg' : 'max-w-6xl'}`}>
-      {/* 🏆 核心 0：驾驶生涯极值榜单 (支持 月/半年/全年/全部 时间周期切换) */}
+      {/* 🎯 核心 0：爱车里程碑与提车成就墙 (支持自定义提车日期并实时预测) */}
+      <CarMilestonesCard initialData={milestones} />
+
+      {/* 🏆 核心 1：驾驶生涯极值榜单 (支持 月/半年/全年/全部 时间周期切换) */}
       <DrivingRecordsCard records={records} />
 
       {/* 顶部总览卡片 */}

@@ -6,7 +6,7 @@ import { Car, DriveSummary, ChargeSummary, LifetimeStats } from '@/types';
 import { CarStatusHero } from '@/components/car/CarStatusHero';
 import { StatCard } from '@/components/common/StatCard';
 import { formatDistance, formatDuration, formatEnergy, formatEfficiency, formatCurrency, formatDateTime } from '@/lib/formatters';
-import { Route, Zap, ChevronRight, TrendingUp, Gauge } from 'lucide-react';
+import { Route, Zap, TrendingUp, Clock, ShieldCheck, ChevronRight, Sparkles, Award } from 'lucide-react';
 
 interface MobileDashboardProps {
   car: Car;
@@ -20,6 +20,28 @@ export function MobileDashboard({ car, latestDrive, latestCharge, stats }: Mobil
     <div className="space-y-3.5 pb-20 pt-1 px-2.5 max-w-lg mx-auto">
       {/* 车辆状态 Hero 卡片 */}
       <CarStatusHero car={car} />
+
+      {/* 🎯 里程碑成就横幅 */}
+      <Link
+        href="/stats"
+        className="bg-gradient-to-r from-amber-500/10 via-zinc-900 to-zinc-900 border border-amber-500/20 rounded-2xl p-2.5 px-3 flex items-center justify-between shadow-sm active:scale-[0.98] transition-transform"
+      >
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30">
+            <Award className="w-3.5 h-3.5" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-white flex items-center gap-1">
+              <span>已达成 1,000 km 破千纪念！</span>
+              <span className="text-[10px] text-amber-400 font-normal">历时 21 天</span>
+            </div>
+            <div className="text-[10px] text-zinc-400 mt-0.5">
+              距 5,000 km 还差 {(5000 - stats.total_distance_km).toFixed(1)} km · 点击查看成就墙
+            </div>
+          </div>
+        </div>
+        <ChevronRight className="w-4 h-4 text-zinc-500" />
+      </Link>
 
       {/* 快捷指标双列 */}
       <div className="grid grid-cols-2 gap-2.5">

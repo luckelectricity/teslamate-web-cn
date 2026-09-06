@@ -19,6 +19,8 @@ import {
   DrivingRecordsByPeriod,
   RecordPeriod,
   DrivingRecordItem,
+  CarMilestone,
+  CarMilestonesData,
 } from '@/types';
 import { wgs84ToGcj02 } from './coordtransform';
 import { reverseGeocodeAddress } from './geocoder';
@@ -33,6 +35,7 @@ import {
   MOCK_BATTERY_HEALTH,
   MOCK_FOOTPRINT_DRIVES,
   MOCK_DRIVING_RECORDS,
+  MOCK_CAR_MILESTONES,
 } from './mockData';
 
 const isDemo = () => process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
@@ -1414,6 +1417,132 @@ export async function fetchFootprintDrives(carId?: number): Promise<FootprintDri
   } catch (err) {
     console.error('fetchFootprintDrives error:', err);
     return [];
+  }
+}
+
+/**
+ * 🎯 7. 获取车辆提车里程碑事件与成就预测 (Milestone Milestones)
+ */
+export async function fetchCarMilestones(carId = 1): Promise<CarMilestonesData> {
+  if (isDemo()) return MOCK_CAR_MILESTONES;
+  const pool = getDbPool();
+  if (!pool) return MOCK_CAR_MILESTONES;
+
+  try {
+    // 1. 获取提车日期 (先查 car_metadata 表，若无则默认 2026-08-16)
+    let deliveryDateStr = '2026-08-16';
+    try {
+      const metaRes = await pool.query(
+        `SELECT delivery_date FROM car_metadata WHERE car_id = $1 LIMIT 1`,
+        [carId]
+      );
+      if (metaRes.rows.length > 0 && metaRes.rows[0].delivery_date) {
+        const d = metaRes.rows[0].delivery_date;
+        deliveryDateStr = typeof d === 'string' ? d.split('T')[0] : new Date(d).toISOString().split('T')[0];
+      }
+    } catch {
+      // 忽略建表前查询异常
+    }
+
+    // 2. 查询当前车机总里程
+    const odoRes = await pool.query(
+      `SELECT COALESCE(MAX(odometer), 0) as current_odometer FROM positions WHERE car_id = $1`,
+      [carId]
+    );
+    const currentOdometer = Number(Number(odoRes.rows[0]?.current_odometer || 0).toFixed(1));
+
+    // 计算提车至今的天数与日均里程
+    const deliveryTime = new Date(`${deliveryDateStr}T00:00:00+08:00`).getTime();
+    const nowTime = Date.now();
+    const daysSinceDelivery = Math.max(1, Math.round((nowTime - deliveryTime) / (1000 * 60 * 60 * 24)));
+    const dailyAvgKm = Number((currentOdometer / daysSinceDelivery).toFixed(1));
+
+    // 3. 定义里程碑梯级目标
+    const TARGETS = [
+      { target_km: 1000, label: '1,000 km 破千纪念' },
+      { target_km: 5000, label: '5,000 km 磨合达标' },
+      { target_km: 10000, label: '10,000 km 黄金里程' },
+      { target_km: 20000, label: '20,000 km 首保大关' },
+      { target_km: 50000, label: '50,000 km 半程王者' },
+      { target_km: 100000, label: '100,000 km 传奇勋章' },
+    ];
+
+    // 4. 查询达成记录
+    const milestones: CarMilestone[] = await Promise.all(
+      TARGETS.map(async (t) => {
+        const isAchieved = currentOdometer >= t.target_km;
+        if (isAchieved) {
+          // 查询首次达成该里程的记录
+          const recRes = await pool.query(
+            `SELECT drive_id, date, odometer 
+             FROM positions 
+             WHERE car_id = $1 AND odometer >= $2 
+             ORDER BY date ASC 
+             LIMIT 1`,
+            [carId, t.target_km]
+          );
+
+          if (recRes.rows.length > 0) {
+            const hitRow = recRes.rows[0];
+            const hitTime = new Date(hitRow.date).getTime();
+            const durationMs = Math.max(0, hitTime - deliveryTime);
+            const totalHours = Math.floor(durationMs / (1000 * 60 * 60));
+            const days = Math.floor(totalHours / 24);
+            const hours = totalHours % 24;
+
+            return {
+              target_km: t.target_km,
+              label: t.label,
+              is_achieved: true,
+              achieved_date: new Date(hitRow.date).toISOString(),
+              achieved_duration_days: days,
+              achieved_duration_hours: hours,
+              achieved_duration_text: `历时 ${days} 天 ${hours} 小时`,
+              drive_id: hitRow.drive_id ? Number(hitRow.drive_id) : undefined,
+            };
+          }
+
+          // 兜底达成
+          return {
+            target_km: t.target_km,
+            label: t.label,
+            is_achieved: true,
+            achieved_duration_days: daysSinceDelivery,
+            achieved_duration_text: `已达成`,
+          };
+        }
+
+        // 未达成：计算进度与预测达成天数
+        const remainingKm = Number((t.target_km - currentOdometer).toFixed(1));
+        const progressPercent = Number(((currentOdometer / t.target_km) * 100).toFixed(1));
+        const effectiveDailyAvg = Math.max(5, dailyAvgKm);
+        const predictedDays = Math.round(remainingKm / effectiveDailyAvg);
+        const predictedDateObj = new Date(nowTime + predictedDays * 24 * 60 * 60 * 1000);
+        const predictedDateStr = predictedDateObj.toISOString().split('T')[0];
+
+        return {
+          target_km: t.target_km,
+          label: t.label,
+          is_achieved: false,
+          current_progress_percent: Math.min(99.9, progressPercent),
+          remaining_km: remainingKm,
+          predicted_days_remaining: predictedDays,
+          predicted_date: predictedDateStr,
+        };
+      })
+    );
+
+    return {
+      car_id: carId,
+      delivery_date: deliveryDateStr,
+      days_since_delivery: daysSinceDelivery,
+      current_odometer: currentOdometer,
+      daily_avg_km: dailyAvgKm,
+      milestones,
+    };
+  } catch (err) {
+    console.error('fetchCarMilestones error:', err);
+    return MOCK_CAR_MILESTONES;
   }
 }
 

@@ -6,7 +6,18 @@ import { Car, DriveSummary, ChargeSummary, LifetimeStats } from '@/types';
 import { CarStatusHero } from '@/components/car/CarStatusHero';
 import { StatCard } from '@/components/common/StatCard';
 import { formatDistance, formatDuration, formatEnergy, formatEfficiency, formatCurrency, formatDateTime } from '@/lib/formatters';
-import { Route, Zap, TrendingUp, Clock, ShieldCheck, ChevronRight, Gauge, Activity } from 'lucide-react';
+import { 
+  Route, 
+  BatteryCharging, 
+  TrendingUp, 
+  Zap, 
+  Activity, 
+  Gauge, 
+  ArrowRight,
+  Sparkles,
+  ChevronRight,
+  Award
+} from 'lucide-react';
 
 interface DesktopDashboardProps {
   car: Car;
@@ -16,10 +27,35 @@ interface DesktopDashboardProps {
 }
 
 export function DesktopDashboard({ car, drives, charges, stats }: DesktopDashboardProps) {
+  const nextTarget = 5000;
+  const remainingToNext = Math.max(0, nextTarget - stats.total_distance_km);
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* 顶部车辆核心全景卡片 */}
       <CarStatusHero car={car} />
+
+      {/* 🎯 爱车里程碑成就横幅 */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-zinc-900 to-zinc-900/90 border border-amber-500/20 rounded-2xl p-3 px-4 flex items-center justify-between shadow-md">
+        <div className="flex items-center gap-2.5">
+          <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30">
+            <Award className="w-4 h-4" />
+          </div>
+          <span className="text-xs font-semibold text-white">
+            🎉 爱车已突破 1,000 km 破千纪念！
+          </span>
+          <span className="text-[11px] text-zinc-400 hidden sm:inline">
+            · 距离下一里程碑 (5,000 km) 还差 {remainingToNext.toFixed(1)} km
+          </span>
+        </div>
+        <Link
+          href="/stats"
+          className="text-xs font-medium text-amber-400 hover:text-amber-300 flex items-center gap-0.5 transition-colors"
+        >
+          <span>查看成就墙</span>
+          <ChevronRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
 
       {/* 四大核心汇总指标 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
