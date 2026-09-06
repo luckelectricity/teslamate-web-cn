@@ -37,7 +37,7 @@ export function CarMilestonesCard({ initialData }: CarMilestonesCardProps) {
     setSaveMessage(null);
 
     try {
-      const res = await fetch('/api/car/delivery-date', {
+      const res = await fetch('/api/car/delivery-date/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

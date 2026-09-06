@@ -27,6 +27,9 @@ export async function POST(req: NextRequest) {
         created_at timestamp without time zone DEFAULT NOW(),
         updated_at timestamp without time zone DEFAULT NOW()
       );
+    `);
+
+    await pool.query(`
       INSERT INTO car_metadata (car_id, delivery_date, updated_at)
       VALUES ($1, $2, NOW())
       ON CONFLICT (car_id) 
