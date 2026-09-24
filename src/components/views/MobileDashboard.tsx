@@ -2,8 +2,10 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Car, DriveSummary, ChargeSummary, LifetimeStats } from '@/types';
+import { Car, DriveSummary, ChargeSummary, LifetimeStats, SocDataPoint, StateTimelineItem } from '@/types';
 import { CarStatusHero } from '@/components/car/CarStatusHero';
+import { SocHistoryChart } from '@/components/charts/SocHistoryChart';
+import { ActivityTimeline } from '@/components/charts/ActivityTimeline';
 import { formatDistance, formatDuration, formatEnergy, formatEfficiency, formatCurrency, formatDateTime } from '@/lib/formatters';
 import { 
   Route, 
@@ -22,12 +24,21 @@ interface MobileDashboardProps {
   latestDrive?: DriveSummary;
   latestCharge?: ChargeSummary;
   stats: LifetimeStats;
+  socHistory: SocDataPoint[];
+  statesTimeline: StateTimelineItem[];
 }
 
-export function MobileDashboard({ car, latestDrive, latestCharge, stats }: MobileDashboardProps) {
+export function MobileDashboard({
+  car,
+  latestDrive,
+  latestCharge,
+  stats,
+  socHistory,
+  statesTimeline,
+}: MobileDashboardProps) {
   return (
     <div className="space-y-4 pb-24 pt-1 px-3 max-w-lg mx-auto">
-      {/* 1. 车辆状态 Hero (CyberUI 核心：Tesla 官方 Studio 3D 渲染 + 3D 翻转卡片 + 状态胶囊) */}
+      {/* 1. 车辆状态 Hero (CyberUI: 官方 Studio 3D 渲染 + 3D 紧凑无缝翻转卡片) */}
       <CarStatusHero car={car} />
 
       {/* 2. 首屏 4 大核心指标 (对齐 CyberUI：额定续航、车辆里程、综合能效、累计充入) */}
@@ -101,7 +112,13 @@ export function MobileDashboard({ car, latestDrive, latestCharge, stats }: Mobil
         </div>
       </div>
 
-      {/* 3. 数据下钻入口卡片 1：最新行程动态 (轻触丝滑下钻至三级轨迹剖面) */}
+      {/* 3. 核心图表 1：SOC 历史与等效续航曲线 (原汁原味 CyberUI 双轴折线图) */}
+      <SocHistoryChart data={socHistory} />
+
+      {/* 4. 核心图表 2：24 小时车辆活动状态时间线 (原汁原味 CyberUI 甘特进度条) */}
+      <ActivityTimeline data={statesTimeline} />
+
+      {/* 5. 数据下钻入口卡片 1：最新行程动态 */}
       {latestDrive && (
         <div className="cyber-card rounded-2xl p-3.5 shadow-lg group">
           <div className="flex items-center justify-between pb-2.5 border-b border-zinc-800/80">
@@ -162,7 +179,7 @@ export function MobileDashboard({ car, latestDrive, latestCharge, stats }: Mobil
         </div>
       )}
 
-      {/* 4. 数据下钻入口卡片 2：最新补能动态 (轻触下钻至充电明细与曲线) */}
+      {/* 6. 数据下钻入口卡片 2：最新补能动态 */}
       {latestCharge && (
         <div className="cyber-card rounded-2xl p-3.5 shadow-lg group">
           <div className="flex items-center justify-between pb-2.5 border-b border-zinc-800/80">
@@ -217,7 +234,7 @@ export function MobileDashboard({ car, latestDrive, latestCharge, stats }: Mobil
         </div>
       )}
 
-      {/* 5. 数据深度分析中心入口 */}
+      {/* 7. 深度分析中心入口 */}
       <div className="cyber-card rounded-2xl p-3.5 shadow-lg">
         <div className="flex items-center justify-between mb-2.5">
           <span className="text-xs font-bold text-white flex items-center gap-1.5">

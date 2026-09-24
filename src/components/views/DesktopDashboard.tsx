@@ -2,8 +2,10 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Car, DriveSummary, ChargeSummary, LifetimeStats } from '@/types';
+import { Car, DriveSummary, ChargeSummary, LifetimeStats, SocDataPoint, StateTimelineItem } from '@/types';
 import { CarStatusHero } from '@/components/car/CarStatusHero';
+import { SocHistoryChart } from '@/components/charts/SocHistoryChart';
+import { ActivityTimeline } from '@/components/charts/ActivityTimeline';
 import { formatDistance, formatDuration, formatEnergy, formatEfficiency, formatCurrency, formatDateTime } from '@/lib/formatters';
 import { 
   Route, 
@@ -22,15 +24,24 @@ interface DesktopDashboardProps {
   drives: DriveSummary[];
   charges: ChargeSummary[];
   stats: LifetimeStats;
+  socHistory: SocDataPoint[];
+  statesTimeline: StateTimelineItem[];
 }
 
-export function DesktopDashboard({ car, drives, charges, stats }: DesktopDashboardProps) {
+export function DesktopDashboard({
+  car,
+  drives,
+  charges,
+  stats,
+  socHistory,
+  statesTimeline,
+}: DesktopDashboardProps) {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* 1. 车辆核心全景卡片 (CyberUI 呼吸光效与状态一览) */}
+      {/* 1. 车辆核心全景卡片 (CyberUI 官方 Studio 3D 渲染 + 3D 紧致翻转卡片) */}
       <CarStatusHero car={car} />
 
-      {/* 2. 核心指标卡 (清晰通透、告别繁复堆叠) */}
+      {/* 2. 核心指标卡 (清晰通透、CyberUI 风格) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="cyber-card rounded-2xl p-4.5">
           <div className="flex items-center justify-between">
@@ -110,7 +121,13 @@ export function DesktopDashboard({ car, drives, charges, stats }: DesktopDashboa
         </div>
       </div>
 
-      {/* 3. 主体分栏：左侧最近行程卡片流 + 右侧补能与深度分析下钻 */}
+      {/* 3. 核心图表行：左侧 SOC 历史与等效续航曲线 + 右侧 24 小时状态时间线 (对齐 CyberUI 核心面板) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SocHistoryChart data={socHistory} />
+        <ActivityTimeline data={statesTimeline} />
+      </div>
+
+      {/* 4. 主体分栏：左侧最近行程卡片流 + 右侧补能与深度分析下钻 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 左侧：最近行程记录 (2 列) */}
         <div className="lg:col-span-2 cyber-card rounded-3xl p-5 shadow-xl">

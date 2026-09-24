@@ -21,6 +21,8 @@ import {
   DrivingRecordItem,
   CarMilestone,
   CarMilestonesData,
+  SocDataPoint,
+  StateTimelineItem,
 } from '@/types';
 import { wgs84ToGcj02 } from './coordtransform';
 import { reverseGeocodeAddress } from './geocoder';
@@ -36,6 +38,8 @@ import {
   MOCK_FOOTPRINT_DRIVES,
   MOCK_DRIVING_RECORDS,
   MOCK_CAR_MILESTONES,
+  MOCK_SOC_HISTORY,
+  MOCK_STATES_TIMELINE,
 } from './mockData';
 
 const isDemo = () => process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
@@ -1545,4 +1549,127 @@ export async function fetchCarMilestones(carId = 1): Promise<CarMilestonesData> 
     return MOCK_CAR_MILESTONES;
   }
 }
+
+/**
+ * 🔋 获取 SOC 历史电量与续航变化 (参考 CyberUI GetSocHistory)
+ * 提取 positions 与 charges 表数据
+ */
+export async function fetchSocHistory(carId = 1, hours = 24): Promise<SocDataPoint[]> {
+  if (isDemo()) return MOCK_SOC_HISTORY;
+  const pool = getDbPool();
+  if (!pool) return MOCK_SOC_HISTORY;
+
+  try {
+    const startTime = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+    const query = `
+      SELECT date, battery_level AS soc, ideal_battery_range_km AS range_km
+      FROM (
+        SELECT battery_level, date, ideal_battery_range_km
+        FROM positions
+        WHERE car_id = $1 AND ideal_battery_range_km IS NOT NULL 
+          AND date >= $2
+        UNION ALL
+        SELECT c.battery_level, c.date, c.ideal_battery_range_km
+        FROM charges c 
+        JOIN charging_processes p ON p.id = c.charging_process_id
+        WHERE p.car_id = $1 AND c.date >= $2
+      ) AS data
+      ORDER BY date ASC
+    `;
+    const res = await pool.query(query, [carId, startTime]);
+    if (!res.rows || res.rows.length === 0) return MOCK_SOC_HISTORY;
+
+    // 适当降采样，避免点过多
+    const rows = res.rows;
+    const step = Math.max(1, Math.floor(rows.length / 100));
+    const sampled: SocDataPoint[] = [];
+    for (let i = 0; i < rows.length; i += step) {
+      const r = rows[i];
+      sampled.push({
+        date: new Date(r.date).toISOString(),
+        soc: Number(r.soc),
+        rangeKm: r.range_km ? Number(Number(r.range_km).toFixed(1)) : undefined,
+      });
+    }
+    // 确保包含最后一个最新点
+    const lastRow = rows[rows.length - 1];
+    if (sampled[sampled.length - 1]?.date !== new Date(lastRow.date).toISOString()) {
+      sampled.push({
+        date: new Date(lastRow.date).toISOString(),
+        soc: Number(lastRow.soc),
+        rangeKm: lastRow.range_km ? Number(Number(lastRow.range_km).toFixed(1)) : undefined,
+      });
+    }
+    return sampled;
+  } catch (err) {
+    console.error('fetchSocHistory error:', err);
+    return MOCK_SOC_HISTORY;
+  }
+}
+
+/**
+ * ⏱️ 获取 24 小时车辆活动状态时间线 (参考 CyberUI GetStatesTimeline)
+ */
+export async function fetchStatesTimeline(carId = 1, hours = 24): Promise<StateTimelineItem[]> {
+  if (isDemo()) return MOCK_STATES_TIMELINE;
+  const pool = getDbPool();
+  if (!pool) return MOCK_STATES_TIMELINE;
+
+  try {
+    const startTime = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+    const query = `
+      SELECT 
+        state,
+        start_date,
+        COALESCE(end_date, NOW()) as end_date,
+        ROUND(EXTRACT(EPOCH FROM (COALESCE(end_date, NOW()) - start_date)) / 60) as duration_min
+      FROM (
+        SELECT 
+          'charging' as state,
+          start_date,
+          end_date
+        FROM charging_processes
+        WHERE car_id = $1 AND end_date >= $2
+        UNION ALL
+        SELECT 
+          'driving' as state,
+          start_date,
+          end_date
+        FROM drives
+        WHERE car_id = $1 AND end_date >= $2
+        UNION ALL
+        SELECT 
+          state,
+          start_date,
+          end_date
+        FROM states
+        WHERE car_id = $1 AND (end_date >= $2 OR end_date IS NULL)
+      ) timeline
+      WHERE start_date IS NOT NULL
+      ORDER BY start_date ASC
+    `;
+    const res = await pool.query(query, [carId, startTime]);
+    if (!res.rows || res.rows.length === 0) return MOCK_STATES_TIMELINE;
+
+    return res.rows.map((r: any) => {
+      let stateNum = 5;
+      if (r.state === 'driving') stateNum = 1;
+      else if (r.state === 'charging') stateNum = 2;
+      else if (r.state === 'offline') stateNum = 3;
+      else if (r.state === 'asleep') stateNum = 4;
+
+      return {
+        state: r.state,
+        state_num: stateNum,
+        start_date: new Date(r.start_date).toISOString(),
+        end_date: new Date(r.end_date).toISOString(),
+        duration_min: Math.max(1, Number(r.duration_min || 1)),
+      };
+    });
+  } catch (err) {
+    console.error('fetchStatesTimeline error:', err);
+    return MOCK_STATES_TIMELINE;
+  }
+}
+
 

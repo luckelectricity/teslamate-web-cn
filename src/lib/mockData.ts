@@ -950,3 +950,47 @@ export const MOCK_CAR_MILESTONES: any = {
   ],
 };
 
+// 🔋 Mock SOC 历史数据点 (近24小时)
+export const MOCK_SOC_HISTORY = (() => {
+  const points = [];
+  const now = Date.now();
+  const stepMs = 30 * 60 * 1000; // 每 30 分钟一个点，共 48 个点
+  // 模拟从 88% 开车到 68%，夜间家充至 90%，白天平稳消耗至 84%
+  for (let i = 48; i >= 0; i--) {
+    const t = new Date(now - i * stepMs).toISOString();
+    let soc = 84;
+    if (i > 36) {
+      // 昨天下午开车
+      soc = 88 - (48 - i) * 1.5;
+    } else if (i > 24) {
+      // 停车静置
+      soc = 70 - (36 - i) * 0.1;
+    } else if (i > 14) {
+      // 夜间 0 点到 5 点家充
+      soc = 68 + (24 - i) * 2.2;
+    } else {
+      // 今天白天
+      soc = Math.max(78, 90 - (14 - i) * 0.6);
+    }
+    const safeSoc = Math.min(100, Math.max(10, Math.round(soc)));
+    points.push({
+      date: t,
+      soc: safeSoc,
+      rangeKm: Math.round(safeSoc * 4.35),
+    });
+  }
+  return points;
+})();
+
+// ⏱️ Mock 车辆活动时间线片段 (近24小时)
+export const MOCK_STATES_TIMELINE = [
+  { state: 'asleep' as const, state_num: 4, start_date: new Date(Date.now() - 24 * 3600000).toISOString(), end_date: new Date(Date.now() - 18 * 3600000).toISOString(), duration_min: 360 },
+  { state: 'online' as const, state_num: 5, start_date: new Date(Date.now() - 18 * 3600000).toISOString(), end_date: new Date(Date.now() - 17.5 * 3600000).toISOString(), duration_min: 30 },
+  { state: 'driving' as const, state_num: 1, start_date: new Date(Date.now() - 17.5 * 3600000).toISOString(), end_date: new Date(Date.now() - 16.5 * 3600000).toISOString(), duration_min: 60 },
+  { state: 'online' as const, state_num: 5, start_date: new Date(Date.now() - 16.5 * 3600000).toISOString(), end_date: new Date(Date.now() - 10 * 3600000).toISOString(), duration_min: 390 },
+  { state: 'charging' as const, state_num: 2, start_date: new Date(Date.now() - 10 * 3600000).toISOString(), end_date: new Date(Date.now() - 6 * 3600000).toISOString(), duration_min: 240 },
+  { state: 'asleep' as const, state_num: 4, start_date: new Date(Date.now() - 6 * 3600000).toISOString(), end_date: new Date(Date.now() - 1.5 * 3600000).toISOString(), duration_min: 270 },
+  { state: 'online' as const, state_num: 5, start_date: new Date(Date.now() - 1.5 * 3600000).toISOString(), end_date: new Date(Date.now()).toISOString(), duration_min: 90 },
+];
+
+

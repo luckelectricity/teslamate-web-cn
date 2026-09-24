@@ -303,3 +303,20 @@ export interface CarMilestonesData {
 export type RecordPeriod = 'month' | 'half_year' | 'year' | 'all';
 export type DrivingRecordsByPeriod = Record<RecordPeriod, DrivingRecords>;
 
+// 🔋 SOC 历史数据点 (对应 CyberUI SocHistoryChart)
+export interface SocDataPoint {
+  date: string;
+  soc: number;
+  rangeKm?: number;
+}
+
+// ⏱️ 车辆活动时间线片段 (对应 CyberUI ActivityTimeline)
+export interface StateTimelineItem {
+  state: 'driving' | 'charging' | 'asleep' | 'online' | 'offline';
+  state_num: number; // 1: driving, 2: charging, 3: offline, 4: asleep, 5: online
+  start_date: string;
+  end_date: string;
+  duration_min: number;
+}
+
+
