@@ -20,7 +20,24 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 16px);
 }
 
-/* CyberUI 风格卡片与丝滑过渡 */
+/* CyberUI 风格卡片与 3D 翻转 */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
 .cyber-card {
   position: relative;
   background: linear-gradient(135deg, rgba(24, 24, 27, 0.85) 0%, rgba(15, 15, 18, 0.95) 100%);
@@ -29,6 +46,7 @@ body {
   -webkit-backdrop-filter: blur(20px);
   transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
 
 .cyber-card:hover {
   border-color: rgba(59, 130, 246, 0.3);

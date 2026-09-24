@@ -1,8 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Car } from '@/types';
-import { BatteryRing } from './BatteryRing';
 import { getCarStateInfo, formatTimeAgo } from '@/lib/formatters';
 import {
   Lock,
@@ -11,147 +10,285 @@ import {
   ShieldAlert,
   Thermometer,
   Gauge,
-  MapPin,
+  RotateCw,
+  Zap,
   Disc,
-  Cpu,
+  Info
 } from 'lucide-react';
+import clsx from 'clsx';
+
+// Tesla 官方车漆与车系代码
+const COLOR_OPTION_CODES: Record<string, string> = {
+  'SolidBlack': 'PBSB',
+  'MidnightSilverMetallic': 'PMNG',
+  'DeepBlueMetallic': 'PPSB',
+  'PearlWhiteMultiCoat': 'PPSW',
+  'RedMultiCoat': 'PPMR',
+  'UltraWhite': 'PN01',
+  'QuicksilverMetallic': 'PR01',
+  'MidnightCherryRed': 'PPSR',
+};
+
+const COLOR_NAMES_ZH: Record<string, { name: string; hex: string }> = {
+  'SolidBlack': { name: '纯黑色', hex: '#111111' },
+  'MidnightSilverMetallic': { name: '冷光银', hex: '#5c6065' },
+  'DeepBlueMetallic': { name: '深海蓝', hex: '#1e3a8a' },
+  'PearlWhiteMultiCoat': { name: '珍珠白', hex: '#f8fafc' },
+  'RedMultiCoat': { name: '中国红', hex: '#dc2626' },
+  'UltraWhite': { name: '星空灰', hex: '#4b5563' },
+  'QuicksilverMetallic': { name: '快银', hex: '#94a3b8' },
+};
+
+// 拼接 Tesla 官方配置器 Studio 3D 渲染图
+const getCarStudioImageUrl = (model?: string, exteriorColor?: string): string => {
+  const modelLower = (model || 'y').toLowerCase();
+  const colorCode = exteriorColor ? (COLOR_OPTION_CODES[exteriorColor] || 'PPSW') : 'PPSW';
+  const baseUrl = 'https://static-assets.tesla.com/configurator/compositor';
+
+  if (modelLower === '3' || modelLower === 'model3') {
+    return `${baseUrl}?context=design_studio_2&options=$MT372,$${colorCode},$W38A,$IPB2,$DRRH&view=STUD_FRONT34&model=m3&size=1920&bkba_opt=1&crop=0,0,0,0&overlay=0&`;
+  } else if (modelLower === 's' || modelLower === 'models') {
+    return `${baseUrl}?context=design_studio_2&options=$MTS13,$${colorCode},$WT20,$IBC00&view=STUD_FRONT34&model=ms&size=1920&bkba_opt=1&crop=0,0,0,0&overlay=0&`;
+  } else if (modelLower === 'x' || modelLower === 'modelx') {
+    return `${baseUrl}?context=design_studio_2&options=$MTX13,$${colorCode},$WX00,$IBC00&view=STUD_FRONT34&model=mx&size=1920&bkba_opt=1&crop=0,0,0,0&overlay=0&`;
+  }
+  // Model Y (默认)
+  return `${baseUrl}?context=design_studio_2&options=$MTY13,$${colorCode},$WY19B,$INPB0&view=STUD_FRONT34&model=my&size=1920&bkba_opt=1&crop=0,0,0,0&overlay=0&`;
+};
 
 interface CarStatusHeroProps {
   car: Car;
 }
 
 export function CarStatusHero({ car }: CarStatusHeroProps) {
+  const [isFlipped, setIsFlipped] = useState(false);
   const stateInfo = getCarStateInfo(car.state);
+  const isCharging = car.state === 'charging';
+
+  // 车漆与车型名称
+  const colorConfig = COLOR_NAMES_ZH[car.exterior_color] || { name: car.exterior_color || '经典车漆', hex: '#64748b' };
+  const carStudioUrl = getCarStudioImageUrl(car.model, car.exterior_color);
 
   return (
-    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-zinc-900/95 via-zinc-900/80 to-zinc-950/95 border border-zinc-800/80 p-4 sm:p-6 shadow-2xl backdrop-blur-2xl transition-all">
-      {/* 顶部微光环境氛围 */}
-      <div className="absolute top-0 right-1/4 w-80 h-32 bg-red-600/10 rounded-full blur-3xl pointer-events-none -z-0" />
-      <div className="absolute -top-10 -left-10 w-64 h-32 bg-blue-600/5 rounded-full blur-3xl pointer-events-none -z-0" />
+    <div className="perspective-1000 w-full select-none cursor-pointer" onClick={() => setIsFlipped(!isFlipped)}>
+      <div
+        className={clsx(
+          'relative w-full transition-transform duration-500 preserve-3d',
+          isFlipped && 'rotate-y-180'
+        )}
+      >
+        {/* ===================== 正面卡片 (Front: CyberUI 官方 Studio 3D 渲染与核心车况) ===================== */}
+        <div
+          className="cyber-card rounded-3xl p-5 sm:p-6 overflow-hidden relative backface-hidden shadow-2xl min-h-[300px] sm:min-h-[360px] flex flex-col justify-between"
+          style={{ backfaceVisibility: 'hidden' }}
+        >
+          {/* 赛博科幻微光氛围 */}
+          <div className="absolute top-0 right-10 w-72 h-44 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none -z-0 animate-cyber-pulse" />
+          <div className="absolute -bottom-10 left-10 w-64 h-36 bg-blue-600/10 rounded-full blur-3xl pointer-events-none -z-0" />
 
-      {/* 顶部：车名与状态指示栏 */}
-      <div className="relative z-10 flex items-center justify-between gap-2 pb-4 border-b border-zinc-800/60">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-white truncate">
-              {car.name || `Model ${car.model}`}
-            </h1>
-            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold bg-zinc-800 text-zinc-300 border border-zinc-700/60">
-              Model {car.model} {car.trim_badging ? `(${car.trim_badging})` : ''}
-            </span>
-          </div>
+          {/* 顶部状态行 */}
+          <div className="relative z-10 flex items-start justify-between gap-3">
+            {/* 左侧：Tesla App 风格电量与电量指示条 */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2.5">
+                {/* 物理电量胶囊 */}
+                <div className="relative w-9 h-4.5 border border-white/30 rounded-[3px] flex items-center p-[1.5px] bg-black/40">
+                  <div className="absolute -right-[3px] top-1/2 -translate-y-1/2 w-[2px] h-2 rounded-r-[1px] bg-white/40" />
+                  <div
+                    className={clsx(
+                      'h-full rounded-[1.5px] transition-all duration-500',
+                      isCharging && 'animate-pulse'
+                    )}
+                    style={{
+                      width: `${car.battery_level}%`,
+                      background: car.battery_level <= 20 ? '#ef4444' : '#00f0ff',
+                    }}
+                  />
+                  {isCharging && (
+                    <div className="absolute inset-0 flex items-center justify-center text-white">
+                      <Zap className="w-3 h-3 fill-current text-white animate-bounce" />
+                    </div>
+                  )}
+                </div>
 
-          <div className="flex items-center gap-2 text-[11px] text-zinc-400 mt-1 font-mono">
-            <span className="truncate">{car.vin}</span>
-          </div>
-        </div>
+                {/* 电量百分比大字 */}
+                <span className="text-xl sm:text-2xl font-extrabold font-mono text-cyan-400 tracking-tight">
+                  {car.battery_level}%
+                </span>
 
-        {/* 呼吸光效状态徽章 */}
-        <div className="shrink-0">
-          <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border shadow-sm ${stateInfo.bg} ${stateInfo.color} ${stateInfo.border}`}>
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-current opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-current" />
-            </span>
-            <span className="whitespace-nowrap">{stateInfo.text}</span>
-            {car.since && (
-              <span className="text-[10px] opacity-75 font-normal whitespace-nowrap hidden sm:inline">
-                ({formatTimeAgo(car.since)})
+                {/* 预估续航 */}
+                <span className="text-xs text-zinc-400 font-mono">
+                  {car.ideal_battery_range_km ? `${car.ideal_battery_range_km.toFixed(0)} km` : '--'}
+                </span>
+              </div>
+
+              {/* 状态徽章 */}
+              <div className="flex items-center gap-2 pt-0.5">
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${stateInfo.bg} ${stateInfo.color} ${stateInfo.border}`}>
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-current opacity-75" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-current" />
+                  </span>
+                  <span>{stateInfo.text}</span>
+                </span>
+                {car.since && (
+                  <span className="text-[11px] text-zinc-500">
+                    {formatTimeAgo(car.since)}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* 右侧：车辆名称与翻转提示 */}
+            <div className="text-right flex flex-col items-end">
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                  {car.name || `Tesla Model ${car.model}`}
+                </h2>
+                <span className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 transition-colors" title="点击查看详细参数">
+                  <RotateCw className="w-3 h-3" />
+                </span>
+              </div>
+              <span className="text-[11px] text-zinc-400 font-medium">
+                Model {car.model} {car.trim_badging ? `· ${car.trim_badging}` : ''}
               </span>
-            )}
+            </div>
+          </div>
+
+          {/* 中间核心：Tesla 官方 Studio 3D 真实车身高清大图 (带 Cyber 霓虹发光投影) */}
+          <div className="relative z-10 flex-1 flex items-center justify-center py-2 sm:py-4 pointer-events-none">
+            {/* 车底微光 */}
+            <div className="absolute bottom-2 w-3/4 h-8 bg-cyan-500/20 blur-2xl rounded-full" />
+            <img
+              src={carStudioUrl}
+              alt={`Tesla Model ${car.model}`}
+              className="w-full max-w-[340px] sm:max-w-[460px] lg:max-w-[520px] object-contain drop-shadow-[0_15px_30px_rgba(0,240,255,0.25)] transition-transform duration-500 hover:scale-105"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.onerror = null;
+                target.src = 'https://digitalassets.tesla.com/tesla-contents/image/upload/f_auto,q_auto/Mega-Menu-Vehicles-Model-Y.png';
+              }}
+            />
+          </div>
+
+          {/* 底部：4 项极简车况状态胶囊 (锁车、哨兵、温度、胎压) */}
+          <div className="relative z-10 grid grid-cols-4 gap-2 pt-3 border-t border-zinc-800/60 text-xs">
+            {/* 1. 车锁 */}
+            <div className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-zinc-900/80 border border-zinc-800/80">
+              {car.is_locked ? (
+                <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              ) : (
+                <Unlock className="w-3.5 h-3.5 text-red-400 shrink-0" />
+              )}
+              <span className="text-[11px] text-zinc-300 font-medium truncate">
+                {car.is_locked ? '已上锁' : '未锁定'}
+              </span>
+            </div>
+
+            {/* 2. 哨兵 */}
+            <div className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-zinc-900/80 border border-zinc-800/80">
+              {car.is_sentry_mode ? (
+                <ShieldAlert className="w-3.5 h-3.5 text-red-400 shrink-0" />
+              ) : (
+                <ShieldCheck className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+              )}
+              <span className="text-[11px] text-zinc-300 font-medium truncate">
+                {car.is_sentry_mode ? '哨兵开' : '哨兵关'}
+              </span>
+            </div>
+
+            {/* 3. 温度 */}
+            <div className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-zinc-900/80 border border-zinc-800/80">
+              <Thermometer className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="text-[11px] text-zinc-300 font-medium truncate font-mono">
+                {car.inside_temp != null ? `${car.inside_temp}°` : '--'}/{car.outside_temp != null ? `${car.outside_temp}°` : '--'}
+              </span>
+            </div>
+
+            {/* 4. 胎压 */}
+            <div className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-zinc-900/80 border border-zinc-800/80">
+              <Disc className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+              <span className="text-[11px] text-zinc-300 font-medium truncate font-mono">
+                {car.tire_pressure_fl || 2.9} bar
+              </span>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* 中部核心区：电量环 + 4 大核心卡片（严格单行无折行设计） */}
-      <div className="relative z-10 mt-4 grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-        {/* 电量环 */}
-        <div className="md:col-span-4 flex justify-center py-1">
-          <BatteryRing
-            level={car.battery_level}
-            usableLevel={car.usable_battery_level}
-            rangeKm={car.ideal_battery_range_km}
-            isCharging={car.state === 'charging'}
-          />
-        </div>
-
-        {/* 4 项核心状态卡片（防止折行） */}
-        <div className="md:col-span-8 grid grid-cols-2 gap-2.5 sm:gap-3">
-          {/* 1. 总里程 */}
-          <div className="bg-zinc-900/80 hover:bg-zinc-800/60 border border-zinc-800/80 rounded-2xl p-3 flex items-center gap-3 transition-colors">
-            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 shrink-0">
-              <Gauge className="w-4 h-4 sm:w-5 sm:h-5" />
+        {/* ===================== 反面卡片 (Back: 3D 翻转车辆深度技术档案) ===================== */}
+        <div
+          className="cyber-card rounded-3xl p-5 sm:p-6 overflow-hidden absolute inset-0 backface-hidden shadow-2xl flex flex-col justify-between"
+          style={{
+            backfaceVisibility: 'hidden',
+            transform: 'rotateY(180deg)',
+          }}
+        >
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
+                  <Info className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-bold text-white">车辆硬件与系统档案</h3>
+              </div>
+              <span className="text-xs text-cyan-400 flex items-center gap-1">
+                <span>点击翻回正面</span>
+                <RotateCw className="w-3 h-3" />
+              </span>
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[11px] text-zinc-400 font-medium whitespace-nowrap">总里程</div>
-              <div className="text-sm sm:text-base font-bold text-white tracking-tight whitespace-nowrap truncate mt-0.5">
-                {car.odometer ? car.odometer.toFixed(1) : '0.0'} <span className="text-[10px] font-normal text-zinc-400">km</span>
+
+            <div className="grid grid-cols-2 gap-4 mt-4 text-xs">
+              <div className="p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
+                <div className="text-[11px] text-zinc-500">车辆识别代码 (VIN)</div>
+                <div className="font-mono text-xs font-semibold text-white mt-1 select-text">
+                  {car.vin || '未登记 VIN'}
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
+                <div className="text-[11px] text-zinc-500">车机软件版本</div>
+                <div className="font-mono text-xs font-semibold text-cyan-400 mt-1">
+                  {car.version || '2024.26.8'}
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
+                <div className="text-[11px] text-zinc-500">外观车漆配置</div>
+                <div className="flex items-center gap-2 mt-1">
+                  <div
+                    className="w-3.5 h-3.5 rounded-full border border-white/20 shadow-sm shrink-0"
+                    style={{ background: colorConfig.hex }}
+                  />
+                  <span className="font-medium text-white">{colorConfig.name}</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
+                <div className="text-[11px] text-zinc-500">轮毂规格</div>
+                <div className="font-medium text-white mt-1">
+                  {car.wheel_type || '19 寸双子星轮毂'}
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
+                <div className="text-[11px] text-zinc-500">当前总里程 (Odometer)</div>
+                <div className="font-mono text-xs font-semibold text-white mt-1">
+                  {car.odometer ? car.odometer.toFixed(1) : '0.0'} km
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
+                <div className="text-[11px] text-zinc-500">当前停驻位置</div>
+                <div className="text-xs text-zinc-300 mt-1 truncate">
+                  {car.address || '已定位'}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* 2. 车内/车外温度 */}
-          <div className="bg-zinc-900/80 hover:bg-zinc-800/60 border border-zinc-800/80 rounded-2xl p-3 flex items-center gap-3 transition-colors">
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 shrink-0">
-              <Thermometer className="w-4 h-4 sm:w-5 sm:h-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[11px] text-zinc-400 font-medium whitespace-nowrap">车内 / 室外温</div>
-              <div className="text-sm sm:text-base font-bold text-white tracking-tight whitespace-nowrap truncate mt-0.5">
-                {car.inside_temp != null ? `${car.inside_temp}°` : '--'} <span className="text-zinc-500 font-normal">/</span> {car.outside_temp != null ? `${car.outside_temp}°` : '--'}
-              </div>
-            </div>
+          <div className="pt-3 border-t border-zinc-800/60 text-center text-[11px] text-zinc-500">
+            轻触卡片任意位置即可翻转回主页车况视图
           </div>
-
-          {/* 3. 车锁状态 */}
-          <div className="bg-zinc-900/80 hover:bg-zinc-800/60 border border-zinc-800/80 rounded-2xl p-3 flex items-center gap-3 transition-colors">
-            <div className={`p-2 rounded-xl shrink-0 ${
-              car.is_locked ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
-            }`}>
-              {car.is_locked ? <Lock className="w-4 h-4 sm:w-5 sm:h-5" /> : <Unlock className="w-4 h-4 sm:w-5 sm:h-5" />}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[11px] text-zinc-400 font-medium whitespace-nowrap">门锁状态</div>
-              <div className="text-sm sm:text-base font-bold text-white tracking-tight whitespace-nowrap truncate mt-0.5">
-                {car.is_locked ? '已锁定' : '未上锁'}
-              </div>
-            </div>
-          </div>
-
-          {/* 4. 哨兵模式 */}
-          <div className="bg-zinc-900/80 hover:bg-zinc-800/60 border border-zinc-800/80 rounded-2xl p-3 flex items-center gap-3 transition-colors">
-            <div className={`p-2 rounded-xl shrink-0 ${
-              car.is_sentry_mode ? 'bg-red-500/10 text-red-400' : 'bg-zinc-800 text-zinc-400'
-            }`}>
-              {car.is_sentry_mode ? <ShieldAlert className="w-4 h-4 sm:w-5 sm:h-5" /> : <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[11px] text-zinc-400 font-medium whitespace-nowrap">哨兵模式</div>
-              <div className="text-sm sm:text-base font-bold text-white tracking-tight whitespace-nowrap truncate mt-0.5">
-                {car.is_sentry_mode ? '已开启' : '已关闭'}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 底部：当前定位与四轮胎压 */}
-      <div className="relative z-10 mt-4 pt-3.5 border-t border-zinc-800/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 text-xs">
-        {/* 地址 */}
-        <div className="flex items-center gap-1.5 text-zinc-300 min-w-0">
-          <MapPin className="w-3.5 h-3.5 text-red-500 shrink-0" />
-          <span className="truncate font-medium text-zinc-300">
-            {car.address || '已定位 (陕西省西安/咸阳周边)'}
-          </span>
-        </div>
-
-        {/* 四轮气压 */}
-        <div className="flex items-center gap-2 self-start sm:self-auto bg-zinc-900/90 px-3 py-1 rounded-xl border border-zinc-800 text-[11px] whitespace-nowrap">
-          <Disc className="w-3 h-3 text-zinc-500 shrink-0" />
-          <span className="text-zinc-400">胎压:</span>
-          <span className="font-mono font-medium text-zinc-200">
-            前 {car.tire_pressure_fl || 3.0}/{car.tire_pressure_fr || 3.0} · 后 {car.tire_pressure_rl || 3.0}/{car.tire_pressure_rr || 3.0} bar
-          </span>
         </div>
       </div>
     </div>
