@@ -37,42 +37,45 @@ export function DrivingRecordsCard({ records }: DrivingRecordsCardProps) {
 
   return (
     <div className="bg-zinc-900/90 border border-zinc-800/80 rounded-2xl p-5 md:p-6 backdrop-blur-xl shadow-xl space-y-6">
-      {/* 头部标题与周期切换器 */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800/80 pb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shadow-inner">
+      {/* 头部标题与说明 */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shadow-inner shrink-0">
             <Trophy className="w-5 h-5 animate-pulse" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-zinc-100">驾驶生涯极值榜</h2>
-              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base sm:text-lg font-bold text-zinc-100">驾驶生涯极值榜</h2>
+              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium whitespace-nowrap">
                 <Sparkles className="w-3 h-3" />
                 智能合并行程
               </span>
             </div>
-            <p className="text-xs text-zinc-400 mt-0.5">
+            <p className="text-xs text-zinc-400 mt-0.5 truncate">
               10分钟内临时锁车已自动合并为连贯行程并统计极值
             </p>
           </div>
         </div>
+      </div>
 
-        {/* 周期切换 Tabs */}
-        <div className="inline-flex p-1 bg-zinc-950/80 rounded-xl border border-zinc-800 self-start sm:self-auto">
-          {periodOptions.map((opt) => (
+      {/* 周期切换 Tabs (满宽整行网格展示，极致美感与触感) */}
+      <div className="w-full p-1 bg-zinc-950/90 rounded-2xl border border-zinc-800/80 grid grid-cols-4 gap-1.5 shadow-inner">
+        {periodOptions.map((opt) => {
+          const isActive = activePeriod === opt.key;
+          return (
             <button
               key={opt.key}
               onClick={() => setActivePeriod(opt.key)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                activePeriod === opt.key
-                  ? 'bg-zinc-800 text-amber-400 font-semibold shadow-sm border border-zinc-700/50'
-                  : 'text-zinc-400 hover:text-zinc-200'
+              className={`py-2 sm:py-2.5 text-xs sm:text-sm font-semibold rounded-xl transition-all duration-200 text-center flex items-center justify-center ${
+                isActive
+                  ? 'bg-gradient-to-r from-amber-500/20 via-amber-500/15 to-amber-500/20 text-amber-400 shadow-md border border-amber-500/35 ring-1 ring-amber-500/20'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
               }`}
             >
               {opt.label}
             </button>
-          ))}
-        </div>
+          );
+        })}
       </div>
 
       {/* 极值指标网格 */}

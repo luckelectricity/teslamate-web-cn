@@ -39,24 +39,27 @@ export function StatsClientView({ stats, savings, energy, records, milestones }:
   return (
     <div className={`space-y-4 pb-24 pt-2 px-3 mx-auto ${isMobileLayout ? 'max-w-lg' : 'max-w-6xl'}`}>
       {/* 1. 顶部总览卡片 (CyberUI 风格：全生命总里程与核心指标) */}
-      <div className="cyber-card p-5 rounded-3xl shadow-xl">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400">
+      <div className="cyber-card p-4 sm:p-5 rounded-3xl shadow-xl">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2.5 rounded-2xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shrink-0">
               <Zap className="w-5 h-5" />
             </div>
-            <div>
-              <h1 className="text-base sm:text-lg font-bold text-white tracking-wide">
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-bold text-white tracking-wide truncate">
                 综合能效与全生命大盘
               </h1>
-              <p className="text-xs text-zinc-400 mt-0.5">
+              <p className="text-xs text-zinc-400 mt-0.5 truncate">
                 电量流向去向剖析 · 行车 vs 停车静置漏电
               </p>
             </div>
           </div>
-          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
-            {stats.total_distance_km.toFixed(1)} km
-          </span>
+          <div className="shrink-0 flex items-center">
+            <span className="inline-flex items-baseline gap-1 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono whitespace-nowrap">
+              <span>{stats.total_distance_km.toFixed(1)}</span>
+              <span className="text-[10px] text-emerald-400/80 font-sans uppercase">km</span>
+            </span>
+          </div>
         </div>
       </div>
 
