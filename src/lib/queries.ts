@@ -1613,6 +1613,7 @@ export async function fetchSocHistory(carId = 1, hours = 24): Promise<SocDataPoi
 
 /**
  * ⏱️ 获取 24 小时车辆活动状态时间线 (参考 CyberUI GetStatesTimeline)
+ * 采用事件点切割与优先级覆盖算法，确保 24 小时完整连续无重叠，开车与充电精准嵌入
  */
 export async function fetchStatesTimeline(carId = 1, hours = 24): Promise<StateTimelineItem[]> {
   if (isDemo()) return MOCK_STATES_TIMELINE;
@@ -1620,54 +1621,113 @@ export async function fetchStatesTimeline(carId = 1, hours = 24): Promise<StateT
   if (!pool) return MOCK_STATES_TIMELINE;
 
   try {
-    const startTime = new Date(Date.now() - hours * 3600 * 1000).toISOString();
-    const query = `
-      SELECT 
-        state,
-        start_date,
-        COALESCE(end_date, NOW()) as end_date,
-        ROUND(EXTRACT(EPOCH FROM (COALESCE(end_date, NOW()) - start_date)) / 60) as duration_min
-      FROM (
-        SELECT 
-          'charging' as state,
-          start_date,
-          end_date
-        FROM charging_processes
-        WHERE car_id = $1 AND end_date >= $2
-        UNION ALL
-        SELECT 
-          'driving' as state,
-          start_date,
-          end_date
-        FROM drives
-        WHERE car_id = $1 AND end_date >= $2
-        UNION ALL
-        SELECT 
-          state,
-          start_date,
-          end_date
-        FROM states
-        WHERE car_id = $1 AND (end_date >= $2 OR end_date IS NULL)
-      ) timeline
-      WHERE start_date IS NOT NULL
-      ORDER BY start_date ASC
-    `;
-    const res = await pool.query(query, [carId, startTime]);
-    if (!res.rows || res.rows.length === 0) return MOCK_STATES_TIMELINE;
+    const windowEnd = Date.now();
+    const windowStart = windowEnd - hours * 3600 * 1000;
+    const startIso = new Date(windowStart).toISOString();
 
-    return res.rows.map((r: any) => {
+    const [sRes, dRes, cRes] = await Promise.all([
+      pool.query(
+        'SELECT state::text, start_date, end_date FROM states WHERE car_id = $1 AND (end_date >= $2 OR end_date IS NULL) ORDER BY start_date ASC',
+        [carId, startIso]
+      ),
+      pool.query(
+        'SELECT start_date, end_date FROM drives WHERE car_id = $1 AND end_date >= $2 ORDER BY start_date ASC',
+        [carId, startIso]
+      ),
+      pool.query(
+        'SELECT start_date, end_date FROM charging_processes WHERE car_id = $1 AND end_date >= $2 ORDER BY start_date ASC',
+        [carId, startIso]
+      ),
+    ]);
+
+    const states = sRes.rows.map((r: any) => ({
+      state: r.state as string,
+      start: new Date(r.start_date).getTime(),
+      end: r.end_date ? new Date(r.end_date).getTime() : windowEnd,
+    }));
+    const drives = dRes.rows.map((r: any) => ({
+      start: new Date(r.start_date).getTime(),
+      end: new Date(r.end_date).getTime(),
+    }));
+    const charges = cRes.rows.map((r: any) => ({
+      start: new Date(r.start_date).getTime(),
+      end: new Date(r.end_date).getTime(),
+    }));
+
+    if (states.length === 0 && drives.length === 0 && charges.length === 0) {
+      return MOCK_STATES_TIMELINE;
+    }
+
+    // 收集所有时间切分点
+    const points = new Set<number>([windowStart, windowEnd]);
+    const addInterval = (start: number, end: number) => {
+      const s = Math.max(windowStart, Math.min(windowEnd, start));
+      const e = Math.max(windowStart, Math.min(windowEnd, end));
+      if (s < e) {
+        points.add(s);
+        points.add(e);
+      }
+    };
+
+    states.forEach((s) => addInterval(s.start, s.end));
+    drives.forEach((d) => addInterval(d.start, d.end));
+    charges.forEach((c) => addInterval(c.start, c.end));
+
+    const sortedPoints = Array.from(points).sort((a, b) => a - b);
+    const segments: Array<{ state: string; start: number; end: number; duration_min: number }> = [];
+
+    for (let i = 0; i < sortedPoints.length - 1; i++) {
+      const s = sortedPoints[i];
+      const e = sortedPoints[i + 1];
+      if (e - s < 3000) continue; // 忽略小于3秒的碎片
+      const mid = (s + e) / 2;
+
+      // 优先级判断：driving > charging > states (asleep/online/offline)
+      let state = 'offline';
+      if (drives.some((d) => mid >= d.start && mid <= d.end)) {
+        state = 'driving';
+      } else if (charges.some((c) => mid >= c.start && mid <= c.end)) {
+        state = 'charging';
+      } else {
+        const matchState = states.find((st) => mid >= st.start && mid <= st.end);
+        if (matchState) {
+          state = matchState.state;
+        }
+      }
+
+      segments.push({
+        state,
+        start: s,
+        end: e,
+        duration_min: Math.max(1, Math.round((e - s) / 60000)),
+      });
+    }
+
+    // 合并相邻相同状态
+    const merged: Array<{ state: string; start: number; end: number; duration_min: number }> = [];
+    for (const seg of segments) {
+      const last = merged[merged.length - 1];
+      if (last && last.state === seg.state) {
+        last.end = seg.end;
+        last.duration_min = Math.max(1, Math.round((last.end - last.start) / 60000));
+      } else {
+        merged.push({ ...seg });
+      }
+    }
+
+    return merged.map((m) => {
       let stateNum = 5;
-      if (r.state === 'driving') stateNum = 1;
-      else if (r.state === 'charging') stateNum = 2;
-      else if (r.state === 'offline') stateNum = 3;
-      else if (r.state === 'asleep') stateNum = 4;
+      if (m.state === 'driving') stateNum = 1;
+      else if (m.state === 'charging') stateNum = 2;
+      else if (m.state === 'offline') stateNum = 3;
+      else if (m.state === 'asleep') stateNum = 4;
 
       return {
-        state: r.state,
+        state: m.state as any,
         state_num: stateNum,
-        start_date: new Date(r.start_date).toISOString(),
-        end_date: new Date(r.end_date).toISOString(),
-        duration_min: Math.max(1, Number(r.duration_min || 1)),
+        start_date: new Date(m.start).toISOString(),
+        end_date: new Date(m.end).toISOString(),
+        duration_min: m.duration_min,
       };
     });
   } catch (err) {
