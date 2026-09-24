@@ -3,7 +3,6 @@
 import React, { useMemo, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { SocDataPoint } from '@/types';
-import { BatteryCharging, Clock } from 'lucide-react';
 import { formatDateTime } from '@/lib/formatters';
 
 interface SocHistoryChartProps {
@@ -14,20 +13,32 @@ interface SocHistoryChartProps {
 export function SocHistoryChart({ data, className = '' }: SocHistoryChartProps) {
   const [rangePreset, setRangePreset] = useState<'24h' | '7d'>('24h');
 
+  // 根据当前预设动态截取数据范围
+  const filteredData = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    const now = Date.now();
+    const durationMs = rangePreset === '24h' ? 24 * 3600 * 1000 : 7 * 24 * 3600 * 1000;
+    const cutoff = now - durationMs;
+    const inRange = data.filter((d) => new Date(d.date).getTime() >= cutoff);
+    return inRange.length > 0 ? inRange : data;
+  }, [data, rangePreset]);
+
   // 计算最大估算续航里程 (Model Y 标称约 435~500 km)
   const maxRangeKm = useMemo(() => {
     let max = 0;
-    for (const d of data) {
+    for (const d of filteredData) {
       if (d.rangeKm && d.soc > 0) {
         const est = (d.rangeKm / d.soc) * 100;
         if (est > max) max = est;
       }
     }
     return max > 0 ? Math.round(max) : 435;
-  }, [data]);
+  }, [filteredData]);
 
   const option = useMemo(() => {
-    const chartData = data.map((d) => [new Date(d.date).getTime(), d.soc]);
+    const chartData = filteredData.map((d) => [new Date(d.date).getTime(), d.soc]);
+    const now = Date.now();
+    const minTime = rangePreset === '24h' ? now - 24 * 3600 * 1000 : now - 7 * 24 * 3600 * 1000;
 
     return {
       backgroundColor: 'transparent',
@@ -65,6 +76,8 @@ export function SocHistoryChart({ data, className = '' }: SocHistoryChartProps) 
       },
       xAxis: {
         type: 'time',
+        min: minTime,
+        max: now,
         axisLine: {
           lineStyle: {
             color: 'rgba(255, 255, 255, 0.1)',
@@ -73,6 +86,7 @@ export function SocHistoryChart({ data, className = '' }: SocHistoryChartProps) 
         axisLabel: {
           color: '#71717a',
           fontSize: 10,
+          formatter: rangePreset === '24h' ? '{HH}:{mm}' : '{MM}-{dd}',
         },
         axisTick: { show: false },
         splitLine: { show: false },
@@ -115,14 +129,14 @@ export function SocHistoryChart({ data, className = '' }: SocHistoryChartProps) 
           name: 'SOC',
           type: 'line',
           data: chartData,
-          smooth: 0.4,
+          smooth: 0.35,
           symbol: 'none',
           sampling: 'lttb',
           lineStyle: {
             color: '#00f0ff',
-            width: 2.5,
+            width: 2.2,
             shadowColor: 'rgba(0, 240, 255, 0.4)',
-            shadowBlur: 10,
+            shadowBlur: 8,
           },
           areaStyle: {
             color: {
@@ -141,7 +155,7 @@ export function SocHistoryChart({ data, className = '' }: SocHistoryChartProps) 
         },
       ],
     };
-  }, [data, maxRangeKm]);
+  }, [filteredData, maxRangeKm, rangePreset]);
 
   return (
     <div className={`cyber-card rounded-2xl p-4 shadow-xl ${className}`}>
@@ -157,7 +171,7 @@ export function SocHistoryChart({ data, className = '' }: SocHistoryChartProps) 
         <div className="flex items-center gap-1 bg-zinc-900/90 p-0.5 rounded-lg border border-zinc-800 text-[10px]">
           <button
             onClick={() => setRangePreset('24h')}
-            className={`px-2 py-0.5 rounded-md font-medium transition-all ${
+            className={`px-2.5 py-1 rounded-md font-medium transition-all ${
               rangePreset === '24h'
                 ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                 : 'text-zinc-400 hover:text-white'
@@ -167,7 +181,7 @@ export function SocHistoryChart({ data, className = '' }: SocHistoryChartProps) 
           </button>
           <button
             onClick={() => setRangePreset('7d')}
-            className={`px-2 py-0.5 rounded-md font-medium transition-all ${
+            className={`px-2.5 py-1 rounded-md font-medium transition-all ${
               rangePreset === '7d'
                 ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                 : 'text-zinc-400 hover:text-white'
@@ -184,6 +198,7 @@ export function SocHistoryChart({ data, className = '' }: SocHistoryChartProps) 
           option={option}
           style={{ height: '100%', width: '100%' }}
           opts={{ renderer: 'svg' }}
+          notMerge={true}
         />
       </div>
     </div>

@@ -16,7 +16,7 @@ export default async function HomePage() {
     fetchDrives(undefined, 10, 0),
     fetchCharges(undefined, 10, 0),
     fetchLifetimeStats(),
-    fetchSocHistory(1, 24),
+    fetchSocHistory(1, 168),
     fetchStatesTimeline(1, 24),
   ]);
 

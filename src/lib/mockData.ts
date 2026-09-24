@@ -950,29 +950,35 @@ export const MOCK_CAR_MILESTONES: any = {
   ],
 };
 
-// 🔋 Mock SOC 历史数据点 (近24小时)
+// 🔋 Mock SOC 历史数据点 (完整 7 天，支持 24h 与 7d 切换)
 export const MOCK_SOC_HISTORY = (() => {
   const points = [];
   const now = Date.now();
-  const stepMs = 30 * 60 * 1000; // 每 30 分钟一个点，共 48 个点
-  // 模拟从 88% 开车到 68%，夜间家充至 90%，白天平稳消耗至 84%
-  for (let i = 48; i >= 0; i--) {
+  const stepMs = 60 * 60 * 1000; // 每小时一个点，7 天共 168 个点
+  // 模拟过去 7 天内经历了 2 次夜间家充与 1 次快充补能的完整波形
+  for (let i = 168; i >= 0; i--) {
     const t = new Date(now - i * stepMs).toISOString();
-    let soc = 84;
-    if (i > 36) {
-      // 昨天下午开车
-      soc = 88 - (48 - i) * 1.5;
-    } else if (i > 24) {
-      // 停车静置
-      soc = 70 - (36 - i) * 0.1;
-    } else if (i > 14) {
-      // 夜间 0 点到 5 点家充
-      soc = 68 + (24 - i) * 2.2;
+    const day = Math.floor(i / 24);
+    const hour = 24 - (i % 24);
+
+    let soc = 75;
+    if (day >= 5) {
+      // 5-7 天前：在 85% ~ 60% 波动
+      soc = 85 - (168 - i) * 0.5;
+    } else if (day >= 4) {
+      // 第 4 天夜间家充至 90%
+      soc = 55 + (hour < 6 ? hour * 6 : 35 - hour * 0.8);
+    } else if (day >= 2) {
+      // 2-3 天前：日常行驶消耗
+      soc = 78 - ((day - 2) * 24 + hour) * 0.4;
     } else {
-      // 今天白天
-      soc = Math.max(78, 90 - (14 - i) * 0.6);
+      // 近 24 小时：昨天下午出行到 68%，夜间家充到 90%，白天平稳至 84%
+      if (i > 18) soc = 75 - (24 - i) * 1.2;
+      else if (i > 10) soc = 66 + (18 - i) * 3.0; // 夜间充电
+      else soc = Math.max(76, 90 - (10 - i) * 0.8);
     }
-    const safeSoc = Math.min(100, Math.max(10, Math.round(soc)));
+
+    const safeSoc = Math.min(100, Math.max(15, Math.round(soc)));
     points.push({
       date: t,
       soc: safeSoc,
