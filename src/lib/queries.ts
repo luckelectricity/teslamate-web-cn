@@ -118,7 +118,8 @@ export async function fetchCars(): Promise<Car[]> {
         COALESCE(pos.tpms_pressure_rr, 3.0) as tire_pressure_rr,
         pos.latitude,
         pos.longitude,
-        COALESCE(g.name, addr.name, addr.road, addr.display_name, '陕西省西安市/咸阳市') as address
+        COALESCE(g.name, addr.name, addr.road, addr.display_name, '陕西省西安市/咸阳市') as address,
+        upd.version as software_version
       FROM cars c
       LEFT JOIN LATERAL (
         SELECT * FROM positions p WHERE p.car_id = c.id ORDER BY p.date DESC LIMIT 1
@@ -126,6 +127,9 @@ export async function fetchCars(): Promise<Car[]> {
       LEFT JOIN LATERAL (
         SELECT * FROM states s WHERE s.car_id = c.id ORDER BY s.start_date DESC LIMIT 1
       ) st ON true
+      LEFT JOIN LATERAL (
+        SELECT version FROM updates u WHERE u.car_id = c.id ORDER BY u.start_date DESC LIMIT 1
+      ) upd ON true
       LEFT JOIN addresses addr ON pos.id = addr.id
       LEFT JOIN geofences g ON true
       ORDER BY c.id ASC;
@@ -174,7 +178,7 @@ export async function fetchCars(): Promise<Car[]> {
         latitude: row.latitude ? Number(row.latitude) : 34.223881,
         longitude: row.longitude ? Number(row.longitude) : 108.825993,
         address: row.address || '已定位',
-        version: '2024.32.10',
+        version: row.software_version || '2026.20.300',
         battery_heater: false,
       };
     });

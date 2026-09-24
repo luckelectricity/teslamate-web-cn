@@ -180,7 +180,7 @@ export const MOCK_CAR: Car = {
   latitude: 34.22020,
   longitude: 108.96420,
   address: '雁塔区 · 大雁塔北广场 (慈恩路)',
-  version: '2024.32.10',
+  version: '2026.20.300',
   battery_heater: false,
 };
 
