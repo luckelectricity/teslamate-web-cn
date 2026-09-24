@@ -20,6 +20,40 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 16px);
 }
 
+/* CyberUI 风格卡片与丝滑过渡 */
+.cyber-card {
+  position: relative;
+  background: linear-gradient(135deg, rgba(24, 24, 27, 0.85) 0%, rgba(15, 15, 18, 0.95) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cyber-card:hover {
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 20px -5px rgba(59, 130, 246, 0.15);
+}
+
+.cyber-card:active {
+  transform: scale(0.985);
+  transition-duration: 0.12s;
+}
+
+@keyframes cyberFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes cyberPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.animate-cyber-pulse {
+  animation: cyberPulse 2.5s ease-in-out infinite;
+}
+
 /* 自定义暗色滚动条 */
 ::-webkit-scrollbar {
   width: 6px;
@@ -38,3 +72,4 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #3f3f46;
 }
+

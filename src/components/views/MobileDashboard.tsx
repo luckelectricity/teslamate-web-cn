@@ -4,9 +4,17 @@ import React from 'react';
 import Link from 'next/link';
 import { Car, DriveSummary, ChargeSummary, LifetimeStats } from '@/types';
 import { CarStatusHero } from '@/components/car/CarStatusHero';
-import { StatCard } from '@/components/common/StatCard';
 import { formatDistance, formatDuration, formatEnergy, formatEfficiency, formatCurrency, formatDateTime } from '@/lib/formatters';
-import { Route, Zap, TrendingUp, Clock, ShieldCheck, ChevronRight, Sparkles, Award } from 'lucide-react';
+import { 
+  Route, 
+  Zap, 
+  TrendingUp, 
+  ChevronRight, 
+  Activity, 
+  MapPin, 
+  Gauge,
+  Sparkles
+} from 'lucide-react';
 
 interface MobileDashboardProps {
   car: Car;
@@ -17,147 +25,204 @@ interface MobileDashboardProps {
 
 export function MobileDashboard({ car, latestDrive, latestCharge, stats }: MobileDashboardProps) {
   return (
-    <div className="space-y-3.5 pb-20 pt-1 px-2.5 max-w-lg mx-auto">
-      {/* 车辆状态 Hero 卡片 */}
+    <div className="space-y-3.5 pb-24 pt-1 px-3 max-w-lg mx-auto">
+      {/* 1. 车辆状态 Hero (首屏视觉核心：电量环、续航、锁车、哨兵、温度与胎压) */}
       <CarStatusHero car={car} />
 
-      {/* 🎯 里程碑成就横幅 */}
-      <Link
-        href="/stats"
-        className="bg-gradient-to-r from-amber-500/10 via-zinc-900 to-zinc-900 border border-amber-500/20 rounded-2xl p-2.5 px-3 flex items-center justify-between shadow-sm active:scale-[0.98] transition-transform"
-      >
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30">
-            <Award className="w-3.5 h-3.5" />
-          </div>
-          <div>
-            <div className="text-xs font-bold text-white flex items-center gap-1">
-              <span>已达成 1,000 km 破千纪念！</span>
-              <span className="text-[10px] text-amber-400 font-normal">历时 21 天</span>
-            </div>
-            <div className="text-[10px] text-zinc-400 mt-0.5">
-              距 5,000 km 还差 {(5000 - stats.total_distance_km).toFixed(1)} km · 点击查看成就墙
-            </div>
-          </div>
-        </div>
-        <ChevronRight className="w-4 h-4 text-zinc-500" />
-      </Link>
-
-      {/* 快捷指标双列 */}
+      {/* 2. 首屏核心必要数据胶囊 (简洁无堆叠，大字清晰) */}
       <div className="grid grid-cols-2 gap-2.5">
-        <StatCard
-          title="平均行驶能耗"
-          value={stats.avg_efficiency_wh_km}
-          unit="Wh/km"
-          icon={TrendingUp}
-          trend={{ value: '能效优异', isGood: true }}
-        />
-        <StatCard
-          title="充电累计花费"
-          value={stats.total_charge_cost.toFixed(1)}
-          unit="元"
-          icon={Zap}
-          subtext={`共 ${stats.total_charges} 次家充`}
-        />
+        <div className="cyber-card rounded-2xl p-3.5 flex items-center justify-between">
+          <div>
+            <div className="text-[11px] text-zinc-400 font-medium flex items-center gap-1">
+              <Gauge className="w-3.5 h-3.5 text-blue-400" />
+              <span>累计里程</span>
+            </div>
+            <div className="text-lg font-bold text-white font-mono mt-1 tracking-tight">
+              {stats.total_distance_km ? stats.total_distance_km.toFixed(1) : '0.0'}
+              <span className="text-xs text-zinc-500 font-sans ml-1">km</span>
+            </div>
+          </div>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium">
+            已记录
+          </span>
+        </div>
+
+        <div className="cyber-card rounded-2xl p-3.5 flex items-center justify-between">
+          <div>
+            <div className="text-[11px] text-zinc-400 font-medium flex items-center gap-1">
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+              <span>综合能耗</span>
+            </div>
+            <div className="text-lg font-bold text-emerald-400 font-mono mt-1 tracking-tight">
+              {stats.avg_efficiency_wh_km || 0}
+              <span className="text-xs text-zinc-500 font-sans ml-1">Wh/km</span>
+            </div>
+          </div>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+            优异
+          </span>
+        </div>
       </div>
 
-      {/* 最近一次行程卡片 */}
+      {/* 3. 数据下钻入口卡片 1：最新行程动态 (轻触丝滑下钻至三级轨迹剖面) */}
       {latestDrive && (
-        <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-3.5 shadow-lg">
-          <div className="flex items-center justify-between pb-2.5 border-b border-zinc-800/80">
+        <div className="cyber-card rounded-2xl p-4 shadow-lg group">
+          <div className="flex items-center justify-between pb-3 border-b border-zinc-800/80">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400">
+              <div className="p-1.5 rounded-xl bg-blue-500/10 text-blue-400">
                 <Route className="w-4 h-4" />
               </div>
-              <span className="text-xs font-bold text-white">最近行程</span>
+              <span className="text-xs font-bold text-white tracking-wide">最近一次出行</span>
             </div>
             <Link
-              href={`/drives/${latestDrive.id}`}
-              className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-0.5"
+              href="/drives"
+              className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-0.5 transition-colors"
             >
-              <span>查看轨迹</span>
-              <ChevronRight className="w-3.5 h-3.5" />
+              <span>全部行程</span>
+              <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
             </Link>
           </div>
 
-          <div className="mt-2.5 space-y-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-zinc-400">行驶里程 / 耗时</span>
-              <span className="font-semibold text-white">
-                {formatDistance(latestDrive.distance)} · {formatDuration(latestDrive.duration_min)}
-              </span>
+          <Link
+            href={`/drives/${latestDrive.id}`}
+            className="block mt-3 active:opacity-80 transition-opacity"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold text-white truncate">
+                  {latestDrive.end_address || '行驶终点'}
+                </div>
+                <div className="text-[11px] text-zinc-500 truncate mt-0.5">
+                  始于 {latestDrive.start_address || '起点'}
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-xs font-bold text-white font-mono">
+                  {formatDistance(latestDrive.distance)}
+                </div>
+                <div className="text-[10px] text-zinc-400 mt-0.5">
+                  耗时 {formatDuration(latestDrive.duration_min)}
+                </div>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-zinc-400">消耗电量 / 能效</span>
-              <span className="font-semibold text-emerald-400">
-                {formatEnergy(latestDrive.consumption_kwh)} ({formatEfficiency(latestDrive.efficiency_wh_km)})
-              </span>
+
+            <div className="mt-3 pt-2.5 border-t border-zinc-800/50 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-emerald-400 font-mono font-medium">
+                  {latestDrive.start_battery_level}% → {latestDrive.end_battery_level}%
+                </span>
+                <span className="text-zinc-600">·</span>
+                <span className="text-[11px] text-zinc-400">
+                  {formatEfficiency(latestDrive.efficiency_wh_km)}
+                </span>
+              </div>
+              <div className="text-[11px] font-medium text-tesla-blue group-hover:text-blue-400 flex items-center gap-0.5">
+                <span>轨迹剖面</span>
+                <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+              </div>
             </div>
-            <div className="pt-2 border-t border-zinc-800/40 text-[11px] text-zinc-400 truncate">
-              📍 {latestDrive.end_address}
-            </div>
-          </div>
+          </Link>
         </div>
       )}
 
-      {/* 最近一次充电卡片 */}
+      {/* 4. 数据下钻入口卡片 2：最新补能动态 (轻触下钻至充电明细与曲线) */}
       {latestCharge && (
-        <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-3.5 shadow-lg">
-          <div className="flex items-center justify-between pb-2.5 border-b border-zinc-800/80">
+        <div className="cyber-card rounded-2xl p-4 shadow-lg group">
+          <div className="flex items-center justify-between pb-3 border-b border-zinc-800/80">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+              <div className="p-1.5 rounded-xl bg-emerald-500/10 text-emerald-400">
                 <Zap className="w-4 h-4" />
               </div>
-              <span className="text-xs font-bold text-white">最近充电 (家充)</span>
+              <span className="text-xs font-bold text-white tracking-wide">最近一次补能</span>
             </div>
             <Link
-              href={`/charges`}
-              className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-0.5"
+              href="/charges"
+              className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-0.5 transition-colors"
             >
-              <span>充电明细</span>
-              <ChevronRight className="w-3.5 h-3.5" />
+              <span>全部充电</span>
+              <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
             </Link>
           </div>
 
-          <div className="mt-2.5 space-y-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-zinc-400">充入电量</span>
-              <span className="font-semibold text-emerald-400">
-                +{formatEnergy(latestCharge.charge_energy_added)}
-              </span>
+          <Link
+            href={`/charges/${latestCharge.id}`}
+            className="block mt-3 active:opacity-80 transition-opacity"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold text-white truncate">
+                  {latestCharge.address || '充电站点'}
+                </div>
+                <div className="text-[11px] text-zinc-500 truncate mt-0.5">
+                  {formatDateTime(latestCharge.start_date)}
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-xs font-bold text-emerald-400 font-mono">
+                  +{formatEnergy(latestCharge.charge_energy_added)}
+                </div>
+                <div className="text-[10px] text-amber-400 font-medium mt-0.5">
+                  {formatCurrency(latestCharge.cost)}
+                </div>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-zinc-400">电量与时长</span>
-              <span className="font-semibold text-white">
-                {latestCharge.start_battery_level}% → {latestCharge.end_battery_level}% ({formatDuration(latestCharge.duration_min)})
-              </span>
+
+            <div className="mt-3 pt-2.5 border-t border-zinc-800/50 flex items-center justify-between text-xs">
+              <div className="text-[11px] text-zinc-400">
+                电量 {latestCharge.start_battery_level}% → {latestCharge.end_battery_level}% ({formatDuration(latestCharge.duration_min)})
+              </div>
+              <div className="text-[11px] font-medium text-emerald-400 group-hover:text-emerald-300 flex items-center gap-0.5">
+                <span>充电曲线</span>
+                <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-zinc-400">分时谷电费用</span>
-              <span className="font-semibold text-amber-400">
-                {formatCurrency(latestCharge.cost)}
-              </span>
-            </div>
-          </div>
+          </Link>
         </div>
       )}
 
-      {/* 车辆生命周期总览简报 */}
-      <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-3.5 text-xs text-zinc-400 space-y-2">
-        <div className="flex items-center justify-between font-semibold text-zinc-200">
-          <span>📊 车辆总里程 ({stats.total_distance_km.toFixed(1)} km)</span>
-          <span className="text-[10px] text-zinc-400 font-normal">已记录 {stats.logged_distance_km ? stats.logged_distance_km.toFixed(1) : stats.total_distance_km} km</span>
+      {/* 5. 数据深度分析快捷中心 (将高维数据全部收归为二级/三级入口，告别数据堆叠) */}
+      <div className="cyber-card rounded-2xl p-4 shadow-lg">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>深度数据分析中心</span>
+          </span>
+          <span className="text-[10px] text-zinc-500">点击进入二级专题</span>
         </div>
-        <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
-          <div>连贯行程: <strong className="text-white">{stats.total_drives} 段</strong></div>
-          <div>驾驶时长: <strong className="text-white">{stats.total_drive_duration_hours} 小时</strong></div>
-          <div>累计充入: <strong className="text-white">{stats.total_charge_energy_added} kWh</strong></div>
-          <div>
-            平均电费:{' '}
-            <strong className="text-emerald-400">
-              ¥{(stats.total_charge_cost / Math.max(1, stats.total_distance_km)).toFixed(3)} / km
-            </strong>
-          </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          <Link
+            href="/stats"
+            className="p-2.5 rounded-xl bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 active:scale-95 transition-all text-center flex flex-col items-center justify-center group"
+          >
+            <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 mb-1.5 group-hover:scale-110 transition-transform">
+              <Zap className="w-4 h-4" />
+            </div>
+            <span className="text-[11px] font-semibold text-zinc-200">能耗与成就</span>
+            <span className="text-[9px] text-zinc-500 mt-0.5">电量去向</span>
+          </Link>
+
+          <Link
+            href="/stats/battery"
+            className="p-2.5 rounded-xl bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 active:scale-95 transition-all text-center flex flex-col items-center justify-center group"
+          >
+            <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 mb-1.5 group-hover:scale-110 transition-transform">
+              <Activity className="w-4 h-4" />
+            </div>
+            <span className="text-[11px] font-semibold text-zinc-200">电池健康</span>
+            <span className="text-[9px] text-emerald-400 mt-0.5">衰减估算</span>
+          </Link>
+
+          <Link
+            href="/stats/footprint"
+            className="p-2.5 rounded-xl bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 active:scale-95 transition-all text-center flex flex-col items-center justify-center group"
+          >
+            <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 mb-1.5 group-hover:scale-110 transition-transform">
+              <MapPin className="w-4 h-4" />
+            </div>
+            <span className="text-[11px] font-semibold text-zinc-200">足迹热力</span>
+            <span className="text-[9px] text-blue-400 mt-0.5">全量地图</span>
+          </Link>
         </div>
       </div>
     </div>
