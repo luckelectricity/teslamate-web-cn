@@ -4,8 +4,9 @@ import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { DriveSummary } from '@/types';
 import { formatDistance, formatDuration, formatEnergy, formatEfficiency, formatDateTime } from '@/lib/formatters';
-import { Route, MapPin, Zap, ChevronRight, Gauge, Mountain, Calendar } from 'lucide-react';
+import { Route, MapPin, Zap, ChevronRight, Gauge, Mountain, Calendar, Film } from 'lucide-react';
 import { DriveFilterPeriod } from './MobileDrivesView';
+import { Trip3DReplayModal } from '@/components/replay/Trip3DReplayModal';
 
 interface DesktopDrivesViewProps {
   drives: DriveSummary[];
@@ -13,6 +14,7 @@ interface DesktopDrivesViewProps {
 
 export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<DriveFilterPeriod>('all');
+  const [showReplayModal, setShowReplayModal] = useState<boolean>(false);
 
   const filterOptions: { key: DriveFilterPeriod; label: string }[] = [
     { key: 'today', label: '今日行程' },
@@ -78,6 +80,16 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
               </button>
             ))}
           </div>
+
+          {/* 3D 漫游动画入口按钮 */}
+          <button
+            onClick={() => setShowReplayModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/30 transition-all shadow-sm group"
+            title="结合最近行程生成 3D 车辆轨迹巡航动画，支持剔除无关行程并录屏分享"
+          >
+            <Film className="w-3.5 h-3.5 text-red-500 group-hover:scale-110 transition-transform" />
+            <span>3D漫游动画</span>
+          </button>
 
           <div className="flex items-center gap-2.5 text-xs">
             <div className="bg-zinc-900 px-3 py-1.5 rounded-xl border border-zinc-800 text-center">
@@ -177,6 +189,12 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
           </table>
         </div>
       </div>
+
+      {/* 3D 轨迹巡航回放与录屏模态框 */}
+      <Trip3DReplayModal
+        isOpen={showReplayModal}
+        onClose={() => setShowReplayModal(false)}
+      />
     </div>
   );
 }

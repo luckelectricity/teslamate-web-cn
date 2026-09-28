@@ -99,6 +99,21 @@ export interface FootprintDrivePath {
   points: [number, number][]; // [lat, lng] GCJ-02
 }
 
+// 🎬 3D 旅程巡航回放数据类型
+export interface ReplayPoint {
+  lat: number;
+  lng: number;
+  speed: number;
+  battery: number;
+  time: string;
+  driveId: number;
+}
+
+export interface ReplayDriveItem extends DriveSummary {
+  points: ReplayPoint[];
+}
+
+
 // 停车段摘要
 export interface ParkingSummary {
   id: number;

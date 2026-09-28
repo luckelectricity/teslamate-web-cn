@@ -17,8 +17,10 @@ import {
   Gauge, 
   Clock, 
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Film
 } from 'lucide-react';
+import { Trip3DReplayModal } from '@/components/replay/Trip3DReplayModal';
 
 export type FootprintPeriod = 'today' | 'yesterday' | '3d' | '7d' | '30d' | 'all';
 
@@ -37,6 +39,7 @@ export function FootprintAnalysisClientView({
 }: FootprintAnalysisClientViewProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<FootprintPeriod>('all');
   const [activePathId, setActivePathId] = useState<number | null>(null);
+  const [showReplayModal, setShowReplayModal] = useState<boolean>(false);
 
   const periodOptions: { key: FootprintPeriod; label: string }[] = [
     { key: 'today', label: '今日行程' },
@@ -97,7 +100,16 @@ export function FootprintAnalysisClientView({
           <ArrowLeft className="w-4 h-4" />
           <span>返回统计大盘</span>
         </Link>
-        <span className="text-xs text-zinc-400 font-mono">行车轨迹与地理空间分析</span>
+
+        {/* 3D 漫游巡航动画入口 */}
+        <button
+          onClick={() => setShowReplayModal(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/30 transition-all shadow-sm group"
+          title="生成 3D 车辆轨迹漫游动画并录屏分享"
+        >
+          <Film className="w-3.5 h-3.5 text-red-500 group-hover:scale-110 transition-transform" />
+          <span>3D漫游动画</span>
+        </button>
       </div>
 
       {/* 顶部时间维度筛选卡片 */}
@@ -331,6 +343,12 @@ export function FootprintAnalysisClientView({
           ))}
         </div>
       </div>
+
+      {/* 3D 轨迹巡航回放与录屏模态框 */}
+      <Trip3DReplayModal
+        isOpen={showReplayModal}
+        onClose={() => setShowReplayModal(false)}
+      />
     </div>
   );
 }

@@ -23,6 +23,8 @@ import {
   CarMilestonesData,
   SocDataPoint,
   StateTimelineItem,
+  ReplayDriveItem,
+  ReplayPoint,
 } from '@/types';
 import { wgs84ToGcj02 } from './coordtransform';
 import { reverseGeocodeAddress } from './geocoder';
@@ -1735,5 +1737,144 @@ export async function fetchStatesTimeline(carId = 1, hours = 24): Promise<StateT
     return MOCK_STATES_TIMELINE;
   }
 }
+
+/**
+ * 🎬 获取供 3D 轨迹巡航动画回放的行程及高密度采样轨迹点
+ * @param carId 车辆 ID (可选)
+ * @param days 最近天数 (1 ~ 10，默认 7)
+ */
+export async function fetchReplayDrives(
+  carId?: number,
+  days = 7
+): Promise<ReplayDriveItem[]> {
+  const safeDays = Math.min(30, Math.max(1, days));
+  const sinceTime = Date.now() - safeDays * 24 * 60 * 60 * 1000;
+
+  // 1. 获取最近合并行程
+  const drives = await fetchDrives(carId, 100, 0, true);
+  // 按天数筛选
+  let filtered = drives.filter((d) => new Date(d.start_date).getTime() >= sinceTime);
+
+  // 如果选的天数太短导致没有数据，至少保留最近3条以防空屏
+  if (filtered.length === 0 && drives.length > 0) {
+    filtered = drives.slice(0, 3);
+  }
+
+  // Demo 模式逻辑
+  if (isDemo()) {
+    return filtered.map((d, idx) => {
+      // 模拟拟真平滑轨迹点
+      const startLat = d.start_position_id ? 34.2594 : 34.2202 + idx * 0.03;
+      const startLng = 108.9470 + idx * 0.02;
+      const endLat = 34.2120 + idx * 0.015;
+      const endLng = 108.9650 - idx * 0.025;
+
+      const ptCount = Math.max(60, Math.min(200, Math.round((d.distance || 5) * 15)));
+      const points: ReplayPoint[] = [];
+      const startTime = new Date(d.start_date).getTime();
+      const endTime = new Date(d.end_date).getTime();
+
+      for (let i = 0; i < ptCount; i++) {
+        const ratio = i / (ptCount - 1);
+        const lat = startLat + (endLat - startLat) * ratio + Math.sin(ratio * Math.PI) * 0.008;
+        const lng = startLng + (endLng - startLng) * ratio + Math.cos(ratio * Math.PI) * 0.006;
+        const currentSpeed = Math.round(
+          Math.sin(ratio * Math.PI) * ((d.speed_max || 70) - 15) + (d.speed_avg || 40) * 0.6
+        );
+        const currentBattery = Math.round(
+          (d.start_battery_level || 80) - ratio * ((d.start_battery_level || 80) - (d.end_battery_level || 75))
+        );
+        const currentTime = new Date(startTime + ratio * (endTime - startTime)).toISOString();
+
+        points.push({
+          lat,
+          lng,
+          speed: Math.max(0, currentSpeed),
+          battery: currentBattery,
+          time: currentTime,
+          driveId: d.id,
+        });
+      }
+
+      return {
+        ...d,
+        points,
+      };
+    });
+  }
+
+  // 真实数据库模式
+  const pool = getDbPool();
+  if (!pool || filtered.length === 0) return [];
+
+  try {
+    // 收集所有关联 drive id
+    const allDriveIds: number[] = [];
+    filtered.forEach((d) => {
+      if (d.merged_drive_ids && d.merged_drive_ids.length > 0) {
+        allDriveIds.push(...d.merged_drive_ids);
+      } else {
+        allDriveIds.push(d.id);
+      }
+    });
+    const uniqueIds = Array.from(new Set(allDriveIds));
+
+    // 高密度均匀抽样
+    const posRes = await pool.query(
+      `SELECT drive_id, latitude, longitude, speed, battery_level, date
+       FROM (
+         SELECT 
+           drive_id, 
+           latitude, 
+           longitude,
+           COALESCE(speed, 0) as speed,
+           COALESCE(battery_level, 0) as battery_level,
+           date,
+           ROW_NUMBER() OVER (PARTITION BY drive_id ORDER BY date ASC) as rn,
+           COUNT(*) OVER (PARTITION BY drive_id) as total_pts
+         FROM positions
+         WHERE drive_id = ANY($1::int[]) AND latitude IS NOT NULL AND longitude IS NOT NULL
+       ) sub
+       WHERE rn = 1 OR rn = total_pts OR (rn % GREATEST(1, FLOOR(total_pts / 180.0)::int) = 0)
+       ORDER BY drive_id DESC, date ASC`,
+      [uniqueIds]
+    );
+
+    const ptsBySubDrive = new Map<number, ReplayPoint[]>();
+    for (const row of posRes.rows) {
+      const dId = Number(row.drive_id);
+      const list = ptsBySubDrive.get(dId) || [];
+      const [gcjLng, gcjLat] = wgs84ToGcj02(Number(row.longitude), Number(row.latitude));
+      list.push({
+        lat: gcjLat,
+        lng: gcjLng,
+        speed: Math.round(Number(row.speed || 0)),
+        battery: Math.round(Number(row.battery_level || 0)),
+        time: new Date(row.date).toISOString(),
+        driveId: dId,
+      });
+      ptsBySubDrive.set(dId, list);
+    }
+
+    return filtered.map((d) => {
+      const subIds = d.merged_drive_ids && d.merged_drive_ids.length > 0 ? d.merged_drive_ids : [d.id];
+      const combinedPoints: ReplayPoint[] = [];
+
+      for (const subId of subIds) {
+        const subPts = ptsBySubDrive.get(subId) || [];
+        combinedPoints.push(...subPts);
+      }
+
+      return {
+        ...d,
+        points: combinedPoints,
+      };
+    });
+  } catch (err) {
+    console.error('fetchReplayDrives error:', err);
+    return [];
+  }
+}
+
 
 

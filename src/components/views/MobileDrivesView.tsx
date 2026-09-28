@@ -4,7 +4,8 @@ import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { DriveSummary } from '@/types';
 import { formatDistance, formatDuration, formatEnergy, formatEfficiency, formatDateTime } from '@/lib/formatters';
-import { Route, ChevronRight, Zap, TrendingUp, Navigation, ArrowUpRight, Gauge, Thermometer, Calendar, Filter } from 'lucide-react';
+import { Route, ChevronRight, Zap, TrendingUp, Navigation, ArrowUpRight, Gauge, Thermometer, Calendar, Filter, Film } from 'lucide-react';
+import { Trip3DReplayModal } from '@/components/replay/Trip3DReplayModal';
 
 export type DriveFilterPeriod = 'today' | '3d' | '7d' | '30d' | 'all';
 
@@ -14,6 +15,7 @@ interface MobileDrivesViewProps {
 
 export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<DriveFilterPeriod>('all');
+  const [showReplayModal, setShowReplayModal] = useState<boolean>(false);
 
   const filterOptions: { key: DriveFilterPeriod; label: string }[] = [
     { key: 'today', label: '今日' },
@@ -73,6 +75,15 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
             </button>
           ))}
         </div>
+
+        {/* 3D 漫游巡航动画入口按钮 */}
+        <button
+          onClick={() => setShowReplayModal(true)}
+          className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/30 text-xs font-semibold transition-all shadow-sm"
+        >
+          <Film className="w-3.5 h-3.5 text-red-500" />
+          <span>生成 3D 轨迹漫游动画与录屏</span>
+        </button>
 
         {/* 动态统计汇总 */}
         <div className="grid grid-cols-3 gap-2 pt-1 text-center text-xs">
@@ -184,6 +195,12 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
           );
         })}
       </div>
+
+      {/* 3D 轨迹巡航回放与录屏模态框 */}
+      <Trip3DReplayModal
+        isOpen={showReplayModal}
+        onClose={() => setShowReplayModal(false)}
+      />
     </div>
   );
 }
