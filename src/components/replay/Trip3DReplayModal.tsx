@@ -57,6 +57,7 @@ export function Trip3DReplayModal({
   const [isCleanRecordMode, setIsCleanRecordMode] = useState<boolean>(false);
   const [is3DMode, setIs3DMode] = useState<boolean>(true);
   const [followCar, setFollowCar] = useState<boolean>(true);
+  const [smartZoom, setSmartZoom] = useState<boolean>(true); // 智能电影级运镜：市区特写放大，高速巡航缩小
 
   // 3. 播放状态
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -72,6 +73,13 @@ export function Trip3DReplayModal({
   const passedPolylineRef = useRef<any>(null);
   const animFrameIdRef = useRef<number | null>(null);
   const lastTimestampRef = useRef<number | null>(null);
+
+  // 🎥 抗抖与平滑镜头 Refs
+  const smoothedBearingRef = useRef<number>(0);
+  const lastValidBearingRef = useRef<number>(0);
+  const cameraPosRef = useRef<[number, number] | null>(null);
+  const lastCameraUpdateRef = useRef<number>(0);
+  const lastZoomUpdateRef = useRef<number>(0);
 
   // 为缺少 points 的 drive 生成保底平滑插值路径点
   const ensureDrivePoints = useCallback((driveList: (DriveSummary | ReplayDriveItem)[]): ReplayDriveItem[] => {
@@ -281,6 +289,11 @@ export function Trip3DReplayModal({
     setProgressRatio(0);
     setCurrentPointIndex(0);
     lastTimestampRef.current = null;
+    cameraPosRef.current = null;
+    lastCameraUpdateRef.current = 0;
+    lastZoomUpdateRef.current = 0;
+    smoothedBearingRef.current = 0;
+    lastValidBearingRef.current = 0;
   };
 
   // -------------------------------------------------------------
@@ -417,7 +430,7 @@ export function Trip3DReplayModal({
         const ratio = next / (totalPts - 1);
         setProgressRatio(ratio);
 
-        updateCarAndPolyline(currentFloorIdx, next - currentFloorIdx);
+        updateCarAndPolyline(currentFloorIdx, next - currentFloorIdx, ratio);
 
         return next;
       });
@@ -432,9 +445,9 @@ export function Trip3DReplayModal({
     };
   }, [isPlaying, activeTrajectoryPoints, playbackSpeed]);
 
-  // 更新位置与渲染
+  // 更新位置与渲染 (带角度抗抖滤波、阻尼相机平移、智能电影级运镜)
   const updateCarAndPolyline = useCallback(
-    (floorIdx: number, subT: number) => {
+    (floorIdx: number, subT: number, currentProgress: number) => {
       if (!mapInstanceRef.current || activeTrajectoryPoints.length === 0) return;
       const pt1 = activeTrajectoryPoints[floorIdx];
       const pt2 = activeTrajectoryPoints[Math.min(floorIdx + 1, activeTrajectoryPoints.length - 1)];
@@ -444,16 +457,32 @@ export function Trip3DReplayModal({
       const curLat = pt1.lat + (pt2.lat - pt1.lat) * subT;
       const curLng = pt1.lng + (pt2.lng - pt1.lng) * subT;
 
-      const bearing = calculateBearing(pt1.lat, pt1.lng, pt2.lat, pt2.lng);
+      // 1. 角度抗抖与平滑滤波 (解决低速/市区点位密集时的剧烈甩头与高频抖动)
+      const distSq = (pt2.lat - pt1.lat) ** 2 + (pt2.lng - pt1.lng) ** 2;
+      let targetBearing = lastValidBearingRef.current;
 
+      // 距离大于有效阈值时才计算新方向角 (约 6米位移)
+      if (distSq > 0.00000004) {
+        targetBearing = calculateBearing(pt1.lat, pt1.lng, pt2.lat, pt2.lng);
+        lastValidBearingRef.current = targetBearing;
+      }
+
+      // 最短角差插值
+      let diff = targetBearing - smoothedBearingRef.current;
+      while (diff > 180) diff -= 360;
+      while (diff < -180) diff += 360;
+      smoothedBearingRef.current = (smoothedBearingRef.current + diff * 0.16 + 360) % 360;
+
+      // 更新车标
       if (carMarkerRef.current) {
         carMarkerRef.current.setLatLng([curLat, curLng]);
         const carEl = document.getElementById('car-vehicle-wrapper');
         if (carEl) {
-          carEl.style.transform = `rotate(${Math.round(bearing)}deg)`;
+          carEl.style.transform = `rotate(${Math.round(smoothedBearingRef.current)}deg)`;
         }
       }
 
+      // 2. 更新已驶过的轨迹线
       if (passedPolylineRef.current) {
         const passedCoords: [number, number][] = [];
         for (let i = 0; i <= floorIdx; i++) {
@@ -463,11 +492,62 @@ export function Trip3DReplayModal({
         passedPolylineRef.current.setLatLngs(passedCoords);
       }
 
+      const now = performance.now();
+
+      // 3. 阻尼平滑相机跟随 (彻底解决天水市区高频抖动，平滑推拉)
+      if (!cameraPosRef.current) {
+        cameraPosRef.current = [curLat, curLng];
+      }
+      const [camLat, camLng] = cameraPosRef.current;
+      // 阻尼跟随系数
+      const newCamLat = camLat + (curLat - camLat) * 0.15;
+      const newCamLng = camLng + (curLng - camLng) * 0.15;
+      cameraPosRef.current = [newCamLat, newCamLng];
+
       if (followCar && mapInstanceRef.current) {
-        mapInstanceRef.current.panTo([curLat, curLng], { animate: false });
+        // 节流平移动画 (每 70ms 触发一次平滑过渡，避免 60fps 高频重绘产生的硬件加速撕裂抖动)
+        if (now - lastCameraUpdateRef.current > 70) {
+          lastCameraUpdateRef.current = now;
+          mapInstanceRef.current.panTo([newCamLat, newCamLng], {
+            animate: true,
+            duration: 0.1,
+            easeLinearity: 0.25,
+          });
+        }
+      }
+
+      // 4. 🎬 智能电影级运镜变焦 (西安出发放大 ➔ 高速巡航缩小 ➔ 天水到达放大)
+      if (smartZoom && followCar && mapInstanceRef.current && now - lastZoomUpdateRef.current > 1500) {
+        let idealZoom = 14;
+
+        if (currentProgress < 0.08) {
+          // 起点市区特写 (如西安市区街道)
+          idealZoom = 14.5;
+        } else if (currentProgress < 0.18) {
+          // 离开市区过渡到高速路网
+          const t = (currentProgress - 0.08) / 0.10;
+          idealZoom = 14.5 - t * 3.8; // 平滑缩小至 10.7
+        } else if (currentProgress < 0.82) {
+          // 高速/跨城长途大片级全局俯瞰
+          const spd = pt1.speed || 80;
+          idealZoom = spd >= 85 ? 10.2 : 11.0;
+        } else if (currentProgress < 0.92) {
+          // 驶入天水临近区，开始镜头拉近特写
+          const t = (currentProgress - 0.82) / 0.10;
+          idealZoom = 10.7 + t * 3.8; // 平滑放大至 14.5
+        } else {
+          // 终点天水市区特写推进
+          idealZoom = 14.5;
+        }
+
+        const curMapZoom = mapInstanceRef.current.getZoom();
+        if (Math.abs(curMapZoom - idealZoom) >= 0.8) {
+          lastZoomUpdateRef.current = now;
+          mapInstanceRef.current.setZoom(Math.round(idealZoom), { animate: true });
+        }
       }
     },
-    [activeTrajectoryPoints, followCar]
+    [activeTrajectoryPoints, followCar, smartZoom]
   );
 
   // 进度拖动
@@ -477,7 +557,7 @@ export function Trip3DReplayModal({
     if (activeTrajectoryPoints.length > 0) {
       const targetIdx = Math.floor(val * (activeTrajectoryPoints.length - 1));
       setCurrentPointIndex(targetIdx);
-      updateCarAndPolyline(targetIdx, 0);
+      updateCarAndPolyline(targetIdx, 0, val);
     }
   };
 
@@ -672,6 +752,20 @@ export function Trip3DReplayModal({
               >
                 <Compass className="w-3 h-3" />
                 <span className="hidden sm:inline">3D</span>
+              </button>
+
+              <button
+                onClick={() => setSmartZoom(!smartZoom)}
+                className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold flex items-center gap-1 border transition-all ${
+                  smartZoom
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                }`}
+                title="市区特写自动放大，高速巡航自动缩小俯瞰"
+              >
+                <Sparkles className="w-3 h-3 text-amber-400" />
+                <span className="hidden sm:inline">智能运镜</span>
+                <span className="sm:hidden">运镜</span>
               </button>
 
               <button
