@@ -200,6 +200,7 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
       <Trip3DReplayModal
         isOpen={showReplayModal}
         onClose={() => setShowReplayModal(false)}
+        initialDrives={drives}
       />
     </div>
   );

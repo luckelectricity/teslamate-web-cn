@@ -348,6 +348,7 @@ export function FootprintAnalysisClientView({
       <Trip3DReplayModal
         isOpen={showReplayModal}
         onClose={() => setShowReplayModal(false)}
+        initialDrives={drives}
       />
     </div>
   );
